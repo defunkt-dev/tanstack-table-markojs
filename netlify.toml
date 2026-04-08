@@ -1,4 +1,10 @@
 [build]
   base    = "demo"
   command = "npm run build"
-  publish = "demo/dist/public"
+  publish = "dist/public"
+
+[functions]
+  directory = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
