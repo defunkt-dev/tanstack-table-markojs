@@ -1,6 +1,6 @@
 {
   "name": "tanstack-table-markojs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Marko 6 adapter for @tanstack/table-core — SSR, CSR, and virtualized tables with full resumability support",
   "author": "",
   "license": "MIT",

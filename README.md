@@ -621,6 +621,6 @@ On the server: table rows are fully rendered to HTML. On the client: Marko resto
 
 ## CHANGELOG
 
-### 0.1.0
+### 0.1.1
 
 Initial release. 
