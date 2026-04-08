@@ -16,9 +16,10 @@
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.23",
     "marko": "^6.0.0",
-    "tanstack-table-markojs": "file:.."
+    "tanstack-table-markojs": "^0.1.1"
   },
   "devDependencies": {
+    "@marko/run-adapter-netlify": "^3.0.3",
     "@storybook/marko": "^10.1.0",
     "@storybook/marko-vite": "^4.1.0",
     "storybook": "^10.3.5"

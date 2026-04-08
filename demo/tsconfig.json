@@ -11,9 +11,6 @@
     "allowSyntheticDefaultImports": true,
     "noEmit": true,
     "rootDir": "..",
-    "paths": {
-      "tanstack-table-markojs": ["../src/index.ts"]
-    }
   },
   "include": ["src/**/*", ".storybook/**/*"],
   "exclude": ["node_modules", "dist", "src/lib"]
