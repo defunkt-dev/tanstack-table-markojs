@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="./assets/marko.svg" alt="Marko" height="60" />
+  &nbsp;&nbsp;+&nbsp;&nbsp;
+  <img src="./assets/tanstack.png" alt="TanStack" height="60" />
+</p>
+
 # tanstack-table-markojs
 
 > Marko 6 adapter for [@tanstack/table-core](https://tanstack.com/table) — SSR, CSR, and virtualized tables with full resumability support.
