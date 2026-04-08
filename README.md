@@ -1,4 +1,4 @@
-# marko-table
+# tanstack-table-markojs
 
 > Marko 6 adapter for [@tanstack/table-core](https://tanstack.com/table) — SSR, CSR, and virtualized tables with full resumability support.
 
