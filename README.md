@@ -10,6 +10,10 @@
 
 > Marko 6 adapter for [@tanstack/table-core](https://tanstack.com/table) — SSR, CSR, and virtualized tables with full resumability support.
 
+## Demo
+This demo deployed on Netlify highlights SSR, CSR & Virtual Rows
+https://bejewelled-torte-140a7b.netlify.app/
+
 ## Features
 
 - ✅ **All TanStack Table features** — sorting, filtering, pagination, row selection, column visibility/ordering/pinning/resizing, row expansion, grouping, aggregation, faceted values, server-side mode
