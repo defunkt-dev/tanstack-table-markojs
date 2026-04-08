@@ -23,9 +23,7 @@ export function generateTableId(): string {
   return `mkt_${++_idCounter}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function getTable<TData extends RowData>(
-  id: string,
-): Table<TData> | undefined {
+export function getTable<TData extends RowData>(id: string): Table<TData> | undefined {
   return _instances.get(id) as Table<TData> | undefined;
 }
 
@@ -116,18 +114,13 @@ export function syncVirtualizer(
   scrollElId: string,
   count: number,
   estimateSize: (i: number) => number,
-  onUpdate: (
-    rows: VirtualRow[],
-    paddingTop: number,
-    paddingBottom: number,
-  ) => void,
+  onUpdate: (rows: VirtualRow[], paddingTop: number, paddingBottom: number) => void,
 ): void {
   const notify = (instance: VInstance) => {
     const items = instance.getVirtualItems() as unknown as VirtualRow[];
     const total = instance.getTotalSize();
     const paddingTop = items[0]?.start ?? 0;
-    const paddingBottom =
-      items.length > 0 ? total - (items[items.length - 1]?.end ?? total) : 0;
+    const paddingBottom = items.length > 0 ? total - (items[items.length - 1]?.end ?? total) : 0;
     onUpdate(items, paddingTop, paddingBottom);
   };
 
@@ -139,8 +132,7 @@ export function syncVirtualizer(
     // initial items via ResizeObserver callback on first mount.
     v = new Virtualizer({
       count,
-      getScrollElement: () =>
-        document.getElementById(scrollElId) as Element | null,
+      getScrollElement: () => document.getElementById(scrollElId) as Element | null,
       estimateSize,
       overscan: 5,
       observeElementRect,

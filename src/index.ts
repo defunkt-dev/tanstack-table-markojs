@@ -12,10 +12,15 @@ import {
   type RowData,
   type TableOptions,
   type TableOptionsResolved,
-  type TableState,
   type Updater,
   type Table,
 } from "@tanstack/table-core";
+import {
+  Virtualizer,
+  observeElementRect,
+  observeElementOffset,
+  elementScroll,
+} from "@tanstack/virtual-core";
 
 // Re-export everything so consumers only need this one package
 export * from "@tanstack/table-core";
@@ -24,9 +29,9 @@ export * from "@tanstack/table-core";
 
 /**
  * A value that can be rendered as a cell or header in a Marko template.
- * Functions are called with the TanStack context object; primitives are returned as-is.
+ * Functions are called with the TanStack context object; primitives returned as-is.
  */
-export type Renderable<TProps extends object> =
+export type Renderable<TProps> =
   | string
   | number
   | boolean
@@ -34,14 +39,14 @@ export type Renderable<TProps extends object> =
   | undefined
   | ((props: TProps) => unknown);
 
-/** A cell pre-mapped to plain serializable values. */
+/** A cell pre-mapped to plain serializable values for use in Marko templates. */
 export interface MappedCell {
   id: string;
   colId: string;
   value: string;
 }
 
-/** A row pre-mapped to plain serializable values. */
+/** A row pre-mapped to plain serializable values. Safe in the SSR resume frame. */
 export interface MappedRow<TData extends RowData> {
   id: string;
   isSelected: boolean;
@@ -72,7 +77,7 @@ export interface MappedHeaderGroup {
   headers: MappedHeader[];
 }
 
-/** A column pre-mapped for use in a visibility toggle menu. */
+/** A column pre-mapped for use in a column visibility toggle menu. */
 export interface MappedColumn {
   id: string;
   label: string;
@@ -92,15 +97,10 @@ export interface VirtualRow {
   lane: number;
 }
 
-// ── Internal state type for syncMarkoTable ────────────────────────────────────
-// Using TableState directly gives us proper types throughout the adapter.
-
-type StateUpdater = Updater<TableState>;
-
-// ── Instance caches ───────────────────────────────────────────────────────────
+// ── Table instance cache ──────────────────────────────────────────────────────
 // Module-level — intentionally outside Marko scope, never serialized.
 
-const _tableInstances = new Map<string, Table<unknown>>();
+const _instances = new Map<string, Table<any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
 let _idCounter = 0;
 
 // ── Table utilities ───────────────────────────────────────────────────────────
@@ -122,10 +122,8 @@ export function generateTableId(): string {
  * onClick=() => getTable(tableId)?.firstPage()
  * ```
  */
-export function getTable<TData extends RowData>(
-  id: string,
-): Table<TData> | undefined {
-  return _tableInstances.get(id) as Table<TData> | undefined;
+export function getTable<TData extends RowData>(id: string): Table<TData> | undefined {
+  return _instances.get(id) as Table<TData> | undefined;
 }
 
 /**
@@ -138,7 +136,7 @@ export function getTable<TData extends RowData>(
  * ```
  */
 export function destroyTable(id: string): void {
-  _tableInstances.delete(id);
+  _instances.delete(id);
   destroyVirtualizer(id);
 }
 
@@ -156,7 +154,7 @@ export function flexRender<TProps extends object>(
   comp: Renderable<TProps>,
   props: TProps,
 ): unknown {
-  if (comp === null) return null;
+  if (comp == null) return null;
   if (typeof comp === "function") return comp(props);
   return comp;
 }
@@ -203,10 +201,10 @@ export function flexRender<TProps extends object>(
 export function syncMarkoTable<TData extends RowData>(
   tableId: string,
   options: TableOptions<TData>,
-  currentState: Partial<TableState>,
-  setState: (updater: StateUpdater) => void,
+  currentState: Record<string, unknown>,
+  setState: (updater: Updater<Record<string, unknown>>) => void,
 ): Table<TData> {
-  let table = _tableInstances.get(tableId) as Table<TData> | undefined;
+  let table = _instances.get(tableId) as Table<TData> | undefined;
 
   if (!table) {
     table = createTable<TData>({
@@ -215,71 +213,34 @@ export function syncMarkoTable<TData extends RowData>(
       renderFallbackValue: null,
       ...options,
     } as TableOptionsResolved<TData>);
-    _tableInstances.set(tableId, table as Table<unknown>);
+    _instances.set(tableId, table);
   }
 
-  table.setOptions((prev) => ({
-    ...prev,
-    ...options,
-    state: {
-      ...table!.initialState,
-      ...currentState,
-      ...(options.state ?? {}),
-    },
-    onStateChange(updater: StateUpdater) {
-      setState(updater);
-      options.onStateChange?.(updater);
-    },
-  }));
+  table.setOptions(
+    (prev) =>
+      ({
+        ...prev,
+        ...options,
+        state: {
+          ...table!.initialState,
+          ...currentState,
+          ...(options.state ?? {}),
+        },
+        onStateChange(updater: Updater<Record<string, unknown>>) {
+          setState(updater);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (options as any).onStateChange?.(updater);
+        },
+      }) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  );
 
   return table;
 }
 
-// ── Virtualizer ───────────────────────────────────────────────────────────────
+// ── Virtualizer cache ─────────────────────────────────────────────────────────
 
-// Typed to match @tanstack/virtual-core v3 without importing at the top level
-// (keeps it optional — only bundled when actually called)
-interface VirtualizerLike {
-  getVirtualItems(): VirtualRow[];
-  getTotalSize(): number;
-  setOptions(opts: unknown): void;
-  measure(): void;
-  _willUpdate(): void;
-  cleanup?: () => void;
-}
-
-interface VirtualizerConstructor {
-  new (opts: unknown): VirtualizerLike;
-}
-
-let _VirtualizerCtor: VirtualizerConstructor | undefined;
-let _observeElementRect: unknown;
-let _observeElementOffset: unknown;
-let _elementScroll: unknown;
-
-function _requireVirtual(): void {
-  if (_VirtualizerCtor) return;
-  try {
-     
-    const vc = require("@tanstack/virtual-core") as {
-      Virtualizer: VirtualizerConstructor;
-      observeElementRect: unknown;
-      observeElementOffset: unknown;
-      elementScroll: unknown;
-    };
-    _VirtualizerCtor = vc.Virtualizer;
-    _observeElementRect = vc.observeElementRect;
-    _observeElementOffset = vc.observeElementOffset;
-    _elementScroll = vc.elementScroll;
-  } catch {
-    throw new Error(
-      "[marko-table] syncVirtualizer requires @tanstack/virtual-core.\n" +
-        "Run: npm install @tanstack/virtual-core",
-    );
-  }
-}
-
-const _virtualizerInstances = new Map<string, VirtualizerLike>();
+type VInstance = InstanceType<typeof Virtualizer<Element, Element>>;
+const _virtualizers = new Map<string, VInstance>();
 
 /**
  * Creates or updates a row virtualizer backed by @tanstack/virtual-core v3.
@@ -292,16 +253,12 @@ const _virtualizerInstances = new Map<string, VirtualizerLike>();
  *
  * @param tableId - Same ID as `syncMarkoTable`
  * @param scrollElId - `id` attribute of the scroll container element
- * @param count - Current filtered/sorted row count (`view.rowCount`)
+ * @param count - Current filtered/sorted row count
  * @param estimateSize - Returns estimated row height in pixels
  * @param onUpdate - Receives virtual rows + padding values; write to `<let>` signals
  *
  * @example
  * ```marko
- * <let/virtualRows: VirtualRow[] = [] />
- * <let/paddingTop = 0 />
- * <let/paddingBottom = 0 />
- *
  * <effect() {
  *   syncVirtualizer(tableId, `scroll-${tableId}`, view.rowCount, () => 49,
  *     (vRows, top, bot) => { virtualRows = vRows; paddingTop = top; paddingBottom = bot; });
@@ -312,45 +269,48 @@ export function syncVirtualizer(
   tableId: string,
   scrollElId: string,
   count: number,
-  estimateSize: (index: number) => number,
-  onUpdate: (
-    rows: VirtualRow[],
-    paddingTop: number,
-    paddingBottom: number,
-  ) => void,
+  estimateSize: (i: number) => number,
+  onUpdate: (rows: VirtualRow[], paddingTop: number, paddingBottom: number) => void,
 ): void {
-  _requireVirtual();
-
-  const notify = (instance: VirtualizerLike) => {
-    const items = instance.getVirtualItems();
+  const notify = (instance: VInstance) => {
+    const items = instance.getVirtualItems() as unknown as VirtualRow[];
     const total = instance.getTotalSize();
     const paddingTop = items[0]?.start ?? 0;
-    const paddingBottom =
-      items.length > 0 ? total - (items[items.length - 1]?.end ?? total) : 0;
+    const paddingBottom = items.length > 0 ? total - (items[items.length - 1]?.end ?? total) : 0;
     onUpdate(items, paddingTop, paddingBottom);
   };
 
-  let v = _virtualizerInstances.get(tableId);
+  let v = _virtualizers.get(tableId);
 
   if (!v) {
-    v = new _VirtualizerCtor!({
+    // First call: create instance and set up ResizeObserver/scroll observers.
+    // _willUpdate() triggers observeElementRect which fires onChange with
+    // initial items via ResizeObserver callback on first mount.
+    v = new Virtualizer({
       count,
-      getScrollElement: () => document.getElementById(scrollElId),
+      getScrollElement: () => document.getElementById(scrollElId) as Element | null,
       estimateSize,
       overscan: 5,
-      observeElementRect: _observeElementRect,
-      observeElementOffset: _observeElementOffset,
-      scrollToFn: _elementScroll,
+      observeElementRect,
+      observeElementOffset,
+      scrollToFn: elementScroll,
       onChange: notify,
-    });
-    _virtualizerInstances.set(tableId, v);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    _virtualizers.set(tableId, v);
     v._willUpdate();
   } else {
+    // Subsequent calls: update count after filter/sort changes row count.
+    // measure() clears the size cache and calls notify() directly — the
+    // correct v3 way to force recalculation without waiting for ResizeObserver.
     v.setOptions({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(v as any).options,
       count,
       estimateSize,
       onChange: notify,
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     v.measure();
   }
 }
@@ -360,28 +320,20 @@ export function syncVirtualizer(
  * Called automatically by `destroyTable`.
  */
 export function destroyVirtualizer(id: string): void {
-  const v = _virtualizerInstances.get(id);
+  const v = _virtualizers.get(id);
   if (v) {
-    v.cleanup?.();
-    _virtualizerInstances.delete(id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (v as any).cleanup?.();
+    _virtualizers.delete(id);
   }
 }
 
 /**
- * Pre-loads @tanstack/virtual-core asynchronously.
- * Use in ESM-only environments where `require()` is unavailable.
+ * No-op with static imports — @tanstack/virtual-core is loaded at module
+ * initialisation time. Kept for API compatibility.
  *
- * @example
- * ```ts
- * import { preloadVirtualizer } from "marko-table";
- * await preloadVirtualizer(); // call once at app startup
- * ```
+ * @deprecated Not needed when using the published package. Safe to remove calls.
  */
 export async function preloadVirtualizer(): Promise<void> {
-  if (_VirtualizerCtor) return;
-  const vc = await import("@tanstack/virtual-core");
-  _VirtualizerCtor = vc.Virtualizer as unknown as VirtualizerConstructor;
-  _observeElementRect = vc.observeElementRect;
-  _observeElementOffset = vc.observeElementOffset;
-  _elementScroll = vc.elementScroll;
+  // virtual-core is loaded via static import; nothing to do here
 }

@@ -44,22 +44,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run typecheck && npm run lint && npm run test"
+    "prepublishOnly": "npm run build && npm run typecheck && npm run typecheck:test && npm run lint && npm run test",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "peerDependencies": {
     "@tanstack/table-core": ">=8.0.0",
-    "@tanstack/virtual-core": ">=3.0.0",
-    "marko": ">=6.0.0"
+    "@tanstack/virtual-core": ">=3.0.0"
   },
-  "peerDependenciesMeta": {
-    "@tanstack/virtual-core": {
-      "optional": true
-    }
-  },
-  "dependencies": {
-    "@tanstack/table-core": ">=8.0.0",
-    "happy-dom": "^20.8.9"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@tanstack/virtual-core": "^3.13.23",
     "@types/node": "^25.5.2",

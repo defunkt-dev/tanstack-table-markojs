@@ -4,7 +4,10 @@ import {
   generateTableId,
   getTable,
   destroyTable,
+  destroyVirtualizer,
   syncMarkoTable,
+  syncVirtualizer,
+  preloadVirtualizer,
   createColumnHelper,
   getCoreRowModel,
   getSortedRowModel,
@@ -93,8 +96,7 @@ describe("generateTableId", () => {
 
   it("returns unique IDs on each call", () => {
     const ids = Array.from({ length: 20 }, generateTableId);
-    const unique = new Set(ids);
-    expect(unique.size).toBe(20);
+    expect(new Set(ids).size).toBe(20);
   });
 
   it("starts with 'mkt_'", () => {
@@ -102,59 +104,91 @@ describe("generateTableId", () => {
   });
 });
 
-// ── getTable / destroyTable ───────────────────────────────────────────────────
+// ── getTable ──────────────────────────────────────────────────────────────────
+// Fix 11: afterEach cleanup so instances never leak even if an assertion throws
 
 describe("getTable", () => {
+  let createdId: string | undefined;
+
+  afterEach(() => {
+    if (createdId !== undefined) {
+      destroyTable(createdId);
+      createdId = undefined;
+    }
+  });
+
   it("returns undefined for an unknown ID", () => {
     expect(getTable("nonexistent-id")).toBeUndefined();
   });
 
   it("returns the table instance after syncMarkoTable creates it", () => {
-    const id = generateTableId();
-    const setState = vi.fn();
-
+    createdId = generateTableId();
     syncMarkoTable(
-      id,
-      {
-        data: testData,
-        columns: testColumns,
-        getCoreRowModel: getCoreRowModel(),
-      },
+      createdId,
+      { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() },
       {},
-      setState,
+      vi.fn(),
     );
-
-    const table = getTable<Person>(id);
+    const table = getTable<Person>(createdId);
     expect(table).toBeDefined();
     expect(typeof table?.getRowModel).toBe("function");
-
-    destroyTable(id);
   });
 });
+
+// ── destroyTable ──────────────────────────────────────────────────────────────
 
 describe("destroyTable", () => {
   it("removes the table from the cache", () => {
     const id = generateTableId();
-    const setState = vi.fn();
-
     syncMarkoTable(
       id,
-      {
-        data: testData,
-        columns: testColumns,
-        getCoreRowModel: getCoreRowModel(),
-      },
+      { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() },
       {},
-      setState,
+      vi.fn(),
     );
     expect(getTable(id)).toBeDefined();
-
     destroyTable(id);
     expect(getTable(id)).toBeUndefined();
   });
 
   it("is safe to call with an unknown ID", () => {
     expect(() => destroyTable("does-not-exist")).not.toThrow();
+  });
+
+  // Fix 10: verify destroyTable also destroys the associated virtualizer
+  it("also destroys the associated virtualizer", () => {
+    const id = generateTableId();
+    const scrollId = `scroll-dt-${id}`;
+    const scrollEl = document.createElement("div");
+    scrollEl.id = scrollId;
+    document.body.appendChild(scrollEl);
+
+    try {
+      syncMarkoTable(
+        id,
+        { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() },
+        {},
+        vi.fn(),
+      );
+      syncVirtualizer(id, scrollId, 10, () => 49, vi.fn());
+
+      destroyTable(id);
+      expect(getTable(id)).toBeUndefined();
+
+      // Proof the virtualizer was also destroyed:
+      // If it was NOT destroyed, the very next syncVirtualizer would be a subsequent
+      // call (else branch → measure() fires synchronously on call 1).
+      // Since it WAS destroyed, the next syncVirtualizer is a fresh first call
+      // (_willUpdate, no synchronous onUpdate). The call AFTER that fires measure().
+      const onUpdate = vi.fn();
+      syncVirtualizer(id, scrollId, 10, () => 49, onUpdate); // fresh _willUpdate
+      expect(onUpdate).not.toHaveBeenCalled(); // ResizeObserver async
+      syncVirtualizer(id, scrollId, 10, () => 49, onUpdate); // measure() → sync
+      expect(onUpdate).toHaveBeenCalled();
+    } finally {
+      destroyVirtualizer(id);
+      document.body.removeChild(scrollEl);
+    }
   });
 });
 
@@ -176,11 +210,7 @@ describe("syncMarkoTable", () => {
   it("creates a table instance on first call", () => {
     const t = syncMarkoTable(
       tableId,
-      {
-        data: testData,
-        columns: testColumns,
-        getCoreRowModel: getCoreRowModel(),
-      },
+      { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() },
       {},
       setState,
     );
@@ -189,11 +219,7 @@ describe("syncMarkoTable", () => {
   });
 
   it("returns the same instance reference on subsequent calls", () => {
-    const opts = {
-      data: testData,
-      columns: testColumns,
-      getCoreRowModel: getCoreRowModel(),
-    };
+    const opts = { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() };
     const t1 = syncMarkoTable(tableId, opts, {}, setState);
     const t2 = syncMarkoTable(tableId, opts, {}, setState);
     expect(t1).toBe(t2);
@@ -202,18 +228,14 @@ describe("syncMarkoTable", () => {
   it("returns all rows by default (core row model)", () => {
     const t = syncMarkoTable(
       tableId,
-      {
-        data: testData,
-        columns: testColumns,
-        getCoreRowModel: getCoreRowModel(),
-      },
+      { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() },
       {},
       setState,
     );
     expect(t.getRowModel().rows).toHaveLength(5);
   });
 
-  it("applies sorting state", () => {
+  it("applies sorting state ascending", () => {
     const sorting: SortingState = [{ id: "age", desc: false }];
     const t = syncMarkoTable(
       tableId,
@@ -226,10 +248,7 @@ describe("syncMarkoTable", () => {
       { sorting },
       setState,
     );
-
-    const rows = t.getRowModel().rows;
-    const ages = rows.map((r) => r.original.age);
-    expect(ages).toEqual([22, 25, 28, 30, 35]);
+    expect(t.getRowModel().rows.map((r) => r.original.age)).toEqual([22, 25, 28, 30, 35]);
   });
 
   it("applies sorting state descending", () => {
@@ -245,9 +264,7 @@ describe("syncMarkoTable", () => {
       { sorting },
       setState,
     );
-
-    const ages = t.getRowModel().rows.map((r) => r.original.age);
-    expect(ages).toEqual([35, 30, 28, 25, 22]);
+    expect(t.getRowModel().rows.map((r) => r.original.age)).toEqual([35, 30, 28, 25, 22]);
   });
 
   it("applies global filter", () => {
@@ -263,7 +280,6 @@ describe("syncMarkoTable", () => {
       { globalFilter: "alice" },
       setState,
     );
-
     const rows = t.getRowModel().rows;
     expect(rows).toHaveLength(1);
     expect(rows[0]?.original.name).toBe("Alice");
@@ -282,7 +298,6 @@ describe("syncMarkoTable", () => {
       { pagination },
       setState,
     );
-
     expect(t.getRowModel().rows).toHaveLength(2);
     expect(t.getPageCount()).toBe(3);
   });
@@ -300,9 +315,7 @@ describe("syncMarkoTable", () => {
       { pagination },
       setState,
     );
-
-    const names = t.getRowModel().rows.map((r) => r.original.name);
-    expect(names).toEqual(["Charlie", "Diana"]);
+    expect(t.getRowModel().rows.map((r) => r.original.name)).toEqual(["Charlie", "Diana"]);
   });
 
   it("applies row selection state", () => {
@@ -318,7 +331,6 @@ describe("syncMarkoTable", () => {
       { rowSelection },
       setState,
     );
-
     const rows = t.getRowModel().rows;
     expect(rows[0]?.getIsSelected()).toBe(true);
     expect(rows[1]?.getIsSelected()).toBe(false);
@@ -339,26 +351,17 @@ describe("syncMarkoTable", () => {
       { pagination: { pageIndex: 0, pageSize: 5 } },
       setState,
     );
-
-    // Trigger an internal state change (e.g. going to next page)
     t.nextPage();
-
     expect(setState).toHaveBeenCalled();
-    const updater = setState.mock.calls[0]?.[0];
-    expect(typeof updater).toBe("function");
+    expect(typeof setState.mock.calls[0]?.[0]).toBe("function");
   });
 
   it("updates options when called again with new data", () => {
-    const opts = {
-      data: testData,
-      columns: testColumns,
-      getCoreRowModel: getCoreRowModel(),
-    };
+    const opts = { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() };
     const t = syncMarkoTable(tableId, opts, {}, setState);
     expect(t.getRowModel().rows).toHaveLength(5);
 
-    const newData = testData.slice(0, 2);
-    syncMarkoTable(tableId, { ...opts, data: newData }, {}, setState);
+    syncMarkoTable(tableId, { ...opts, data: testData.slice(0, 2) }, {}, setState);
     expect(t.getRowModel().rows).toHaveLength(2);
   });
 
@@ -375,16 +378,13 @@ describe("syncMarkoTable", () => {
         globalFilterFn: "includesString",
       },
       {
-        globalFilter: "li", // "li" appears in "Alice" and "Charlie" only
+        globalFilter: "li", // matches only "Alice" and "Charlie"
         sorting: [{ id: "name", desc: false }],
         pagination: { pageIndex: 0, pageSize: 2 },
       },
       setState,
     );
-
-    const names = t.getRowModel().rows.map((r) => r.original.name);
-    // Filtered to [Alice, Charlie], sorted asc, page 0 size 2 = [Alice, Charlie]
-    expect(names).toEqual(["Alice", "Charlie"]);
+    expect(t.getRowModel().rows.map((r) => r.original.name)).toEqual(["Alice", "Charlie"]);
     expect(t.getPageCount()).toBe(1);
     expect(t.getFilteredRowModel().rows).toHaveLength(2);
   });
@@ -403,13 +403,12 @@ describe("syncMarkoTable", () => {
       { pagination: { pageIndex: 0, pageSize: 5 } },
       setState,
     );
-
     t.nextPage();
     expect(userOnStateChange).toHaveBeenCalled();
   });
 
-  it("merges provided state overrides over initialState", () => {
-    const sorting: SortingState = [{ id: "name", desc: true }];
+  it("options.state overrides currentState for the same key", () => {
+    const sortingOverride: SortingState = [{ id: "name", desc: true }];
     const t = syncMarkoTable(
       tableId,
       {
@@ -417,27 +416,26 @@ describe("syncMarkoTable", () => {
         columns: testColumns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
-        // Caller also provides state.sorting — should win over currentState
-        state: { sorting },
+        state: { sorting: sortingOverride }, // takes precedence
       },
-      { sorting: [{ id: "age", desc: false }] }, // this should be overridden
+      { sorting: [{ id: "age", desc: false }] }, // overridden by options.state
       setState,
     );
-
-    // options.state.sorting (name desc) should win
-    const names = t.getRowModel().rows.map((r) => r.original.name);
-    expect(names[0]).toBe("Eve"); // E comes last alphabetically desc
+    // name desc: Eve, Diana, Charlie, Bob, Alice
+    expect(t.getRowModel().rows[0]?.original.name).toBe("Eve");
   });
 });
 
-// ── Column visibility ──────────────────────────────────────────────────────────
+// ── Column visibility ─────────────────────────────────────────────────────────
+// Fix 12: setState is now fresh per test
 
 describe("syncMarkoTable — column visibility", () => {
   let tableId: string;
-  const setState = vi.fn();
+  let setState: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     tableId = generateTableId();
+    setState = vi.fn();
   });
   afterEach(() => {
     destroyTable(tableId);
@@ -446,15 +444,10 @@ describe("syncMarkoTable — column visibility", () => {
   it("hides columns via columnVisibility state", () => {
     const t = syncMarkoTable(
       tableId,
-      {
-        data: testData,
-        columns: testColumns,
-        getCoreRowModel: getCoreRowModel(),
-      },
+      { data: testData, columns: testColumns, getCoreRowModel: getCoreRowModel() },
       { columnVisibility: { age: false } },
       setState,
     );
-
     const visibleIds = t.getVisibleLeafColumns().map((c) => c.id);
     expect(visibleIds).not.toContain("age");
     expect(visibleIds).toContain("name");
@@ -462,14 +455,16 @@ describe("syncMarkoTable — column visibility", () => {
   });
 });
 
-// ── Multi-sort ─────────────────────────────────────────────────────────────────
+// ── Multi-sort ────────────────────────────────────────────────────────────────
+// Fix 12: setState is now fresh per test
 
 describe("syncMarkoTable — multi-sort", () => {
   let tableId: string;
-  const setState = vi.fn();
+  let setState: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     tableId = generateTableId();
+    setState = vi.fn();
   });
   afterEach(() => {
     destroyTable(tableId);
@@ -481,7 +476,6 @@ describe("syncMarkoTable — multi-sort", () => {
       { id: 2, name: "Alice", age: 25, status: "inactive" },
       { id: 3, name: "Alice", age: 30, status: "active" },
     ];
-
     const t = syncMarkoTable(
       tableId,
       {
@@ -498,10 +492,147 @@ describe("syncMarkoTable — multi-sort", () => {
       },
       setState,
     );
+    expect(t.getRowModel().rows.map((r) => `${r.original.name}:${r.original.age}`)).toEqual([
+      "Alice:25",
+      "Alice:30",
+      "Bob:25",
+    ]);
+  });
+});
 
-    const result = t
-      .getRowModel()
-      .rows.map((r) => `${r.original.name}:${r.original.age}`);
-    expect(result).toEqual(["Alice:25", "Alice:30", "Bob:25"]);
+// ── syncVirtualizer ───────────────────────────────────────────────────────────
+// Fix 7: full test coverage for syncVirtualizer
+
+describe("syncVirtualizer", () => {
+  let virtualizerId: string;
+  let scrollId: string;
+  let scrollEl: HTMLDivElement;
+
+  beforeEach(() => {
+    // Unique IDs per test — prevents cross-test DOM and instance-cache collisions
+    virtualizerId = generateTableId();
+    scrollId = `scroll-sv-${virtualizerId}`;
+    scrollEl = document.createElement("div");
+    scrollEl.id = scrollId;
+    document.body.appendChild(scrollEl);
+  });
+
+  afterEach(() => {
+    destroyVirtualizer(virtualizerId);
+    if (scrollEl.parentNode) {
+      document.body.removeChild(scrollEl);
+    }
+  });
+
+  it("does not throw on first call", () => {
+    expect(() => syncVirtualizer(virtualizerId, scrollId, 100, () => 49, vi.fn())).not.toThrow();
+  });
+
+  it("does not throw when the scroll element does not exist", () => {
+    // getScrollElement is called lazily by the virtualizer — a missing element
+    // does not crash syncVirtualizer itself
+    expect(() =>
+      syncVirtualizer(virtualizerId, "no-such-element", 100, () => 49, vi.fn()),
+    ).not.toThrow();
+  });
+
+  it("calls onUpdate synchronously on the second call (measure() path)", () => {
+    // First call: _willUpdate() — ResizeObserver fires asynchronously in happy-dom
+    // Second call: setOptions + measure() — measure() calls notify() synchronously
+    const onUpdate = vi.fn();
+    syncVirtualizer(virtualizerId, scrollId, 100, () => 49, onUpdate);
+    syncVirtualizer(virtualizerId, scrollId, 100, () => 49, onUpdate);
+    expect(onUpdate).toHaveBeenCalled();
+  });
+
+  it("onUpdate receives (VirtualRow[], number, number)", () => {
+    const onUpdate = vi.fn();
+    syncVirtualizer(virtualizerId, scrollId, 100, () => 49, onUpdate);
+    syncVirtualizer(virtualizerId, scrollId, 100, () => 49, onUpdate);
+
+    // Last call arguments: [rows, paddingTop, paddingBottom]
+    const lastArgs = onUpdate.mock.calls[onUpdate.mock.calls.length - 1] as [
+      unknown[],
+      number,
+      number,
+    ];
+    expect(Array.isArray(lastArgs[0])).toBe(true);
+    expect(typeof lastArgs[1]).toBe("number");
+    expect(typeof lastArgs[2]).toBe("number");
+  });
+
+  it("uses the latest onUpdate callback after options update", () => {
+    const onUpdate1 = vi.fn();
+    const onUpdate2 = vi.fn();
+    syncVirtualizer(virtualizerId, scrollId, 100, () => 49, onUpdate1);
+    // Second call replaces onChange with onUpdate2, then calls measure()
+    syncVirtualizer(virtualizerId, scrollId, 50, () => 49, onUpdate2);
+    expect(onUpdate2).toHaveBeenCalled();
+  });
+});
+
+// ── destroyVirtualizer ────────────────────────────────────────────────────────
+// Fix 8: full test coverage for destroyVirtualizer
+
+describe("destroyVirtualizer", () => {
+  let scrollId: string;
+  let scrollEl: HTMLDivElement;
+
+  beforeEach(() => {
+    scrollId = `scroll-dv-${generateTableId()}`;
+    scrollEl = document.createElement("div");
+    scrollEl.id = scrollId;
+    document.body.appendChild(scrollEl);
+  });
+
+  afterEach(() => {
+    if (scrollEl.parentNode) {
+      document.body.removeChild(scrollEl);
+    }
+  });
+
+  it("is safe to call with an unknown ID", () => {
+    expect(() => destroyVirtualizer("does-not-exist")).not.toThrow();
+  });
+
+  it("is safe to call multiple times on the same ID", () => {
+    const id = generateTableId();
+    syncVirtualizer(id, scrollId, 10, () => 49, vi.fn());
+    expect(() => {
+      destroyVirtualizer(id);
+      destroyVirtualizer(id); // idempotent second call
+    }).not.toThrow();
+  });
+
+  it("causes the next syncVirtualizer call to create a fresh instance", () => {
+    const id = generateTableId();
+    const onUpdate = vi.fn();
+
+    syncVirtualizer(id, scrollId, 10, () => 49, onUpdate);
+    destroyVirtualizer(id);
+
+    // After destroy: next syncVirtualizer is a fresh first call (_willUpdate).
+    // The call AFTER that goes through measure() and fires onUpdate synchronously.
+    syncVirtualizer(id, scrollId, 10, () => 49, onUpdate); // fresh _willUpdate
+    onUpdate.mockClear();
+    syncVirtualizer(id, scrollId, 10, () => 49, onUpdate); // measure() → sync
+    expect(onUpdate).toHaveBeenCalled();
+
+    destroyVirtualizer(id);
+  });
+});
+
+// ── preloadVirtualizer ────────────────────────────────────────────────────────
+// Fix 9: full test coverage for preloadVirtualizer
+
+describe("preloadVirtualizer", () => {
+  it("resolves immediately as a no-op (static imports mean nothing to preload)", async () => {
+    await expect(preloadVirtualizer()).resolves.toBeUndefined();
+  });
+
+  it("can be called multiple times concurrently without error", async () => {
+    await expect(
+      Promise.all([preloadVirtualizer(), preloadVirtualizer(), preloadVirtualizer()]),
+    ).resolves.toBeDefined();
   });
 });

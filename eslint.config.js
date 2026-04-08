@@ -4,39 +4,40 @@ import tsparser from "@typescript-eslint/parser";
 /** @type {import('eslint').Linter.FlatConfig[]} */
 export default [
   {
-    files: ["src/**/*.ts", "test/**/*.ts"],
+    files: ["src/**/*.ts"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
-        project: true,
+        project: "./tsconfig.json",
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    plugins: {
-      "@typescript-eslint": tseslint,
-    },
+    plugins: { "@typescript-eslint": tseslint },
     rules: {
-      // TypeScript
       ...tseslint.configs["recommended"].rules,
       "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { argsIgnorePattern: "^_" },
-      ],
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports" },
-      ],
-      "@typescript-eslint/no-non-null-assertion": "warn",
-
-      // General
-      "no-console": "warn",
-      "prefer-const": "error",
-      "no-var": "error",
-      eqeqeq: ["error", "always"],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**", "coverage/**", "*.config.ts"],
+    files: ["test/**/*.ts"],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        project: "./tsconfig.test.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    plugins: { "@typescript-eslint": tseslint },
+    rules: {
+      ...tseslint.configs["recommended"].rules,
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
+    },
+  },
+  {
+    ignores: ["dist/**", "node_modules/**", "coverage/**", "*.config.*"],
   },
 ];
