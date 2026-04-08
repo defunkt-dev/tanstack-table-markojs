@@ -623,4 +623,4 @@ On the server: table rows are fully rendered to HTML. On the client: Marko resto
 
 ### 0.1.0
 
-Initial release.
+Initial release. 
