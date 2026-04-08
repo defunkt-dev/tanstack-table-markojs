@@ -1,5 +1,5 @@
 /**
- * marko-table — Marko 6 adapter for @tanstack/table-core
+ * tanstack-table-markojs — Marko 6 adapter for @tanstack/table-core
  *
  * Provides SSR + resumability support, client-only mode, and row virtualization.
  * All TanStack Table features are supported.
@@ -128,11 +128,11 @@ export function getTable<TData extends RowData>(id: string): Table<TData> | unde
 
 /**
  * Removes a table (and its virtualizer, if any) from the module cache.
- * Call in `<effect>` cleanup to prevent memory leaks.
+ * Call in `<script>` cleanup to prevent memory leaks.
  *
  * @example
  * ```marko
- * <effect() { return () => destroyTable(tableId) } />
+ * <script() { return () => destroyTable(tableId) } />
  * ```
  */
 export function destroyTable(id: string): void {
@@ -245,8 +245,8 @@ const _virtualizers = new Map<string, VInstance>();
 /**
  * Creates or updates a row virtualizer backed by @tanstack/virtual-core v3.
  *
- * Call inside `<effect>` (inside `<if=mounted>`) so the scroll element exists.
- * The effect should read `view.rowCount` so Marko re-runs it on filter/sort changes.
+ * Call inside `<script>` (inside `<if=mounted>`) so the scroll element exists.
+ * The script should read `view.rowCount` so Marko re-runs it on filter/sort changes.
  *
  * - **First call:** `_willUpdate()` sets up ResizeObserver/scroll observers.
  * - **Subsequent calls:** `setOptions({ count }) + measure()` forces sync recalculation.
@@ -259,7 +259,7 @@ const _virtualizers = new Map<string, VInstance>();
  *
  * @example
  * ```marko
- * <effect() {
+ * <script() {
  *   syncVirtualizer(tableId, `scroll-${tableId}`, view.rowCount, () => 49,
  *     (vRows, top, bot) => { virtualRows = vRows; paddingTop = top; paddingBottom = bot; });
  * } />

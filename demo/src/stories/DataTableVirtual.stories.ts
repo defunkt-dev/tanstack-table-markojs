@@ -18,7 +18,7 @@ const meta = {
     docs: {
       description: {
         component: [
-          "Row-virtualised table built with **marko-table** + **@tanstack/virtual-core** v3.",
+          "Row-virtualised table built with **tanstack-table-markojs** + **@tanstack/virtual-core** v3.",
           "",
           "Only the ~15 rows visible in the viewport are in the DOM at any time,",
           "regardless of dataset size. Padding `<tr>` elements maintain scroll height.",

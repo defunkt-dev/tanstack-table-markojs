@@ -12,7 +12,7 @@
     "noEmit": true,
     "rootDir": "..",
     "paths": {
-      "marko-table": ["../src/index.ts"]
+      "tanstack-table-markojs": ["../src/index.ts"]
     }
   },
   "include": ["src/**/*", ".storybook/**/*"],

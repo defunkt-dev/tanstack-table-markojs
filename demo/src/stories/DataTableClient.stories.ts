@@ -19,7 +19,7 @@ const meta = {
     docs: {
       description: {
         component: [
-          "Full-featured client-only (CSR) data table built with **marko-table** + **@tanstack/table-core**.",
+          "Full-featured client-only (CSR) data table built with **tanstack-table-markojs** + **@tanstack/table-core**.",
           "",
           "Rendered entirely in the browser — no SSR. All table state lives in",
           "Marko `<let>` signals inside an `<if=mounted>` guard.",

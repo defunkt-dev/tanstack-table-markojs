@@ -1,5 +1,5 @@
 {
-  "name": "marko-table-demo",
+  "name": "tanstack-table-markojs-demo",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.23",
     "marko": "^6.0.0",
-    "marko-table": "file:.."
+    "tanstack-table-markojs": "file:.."
   },
   "devDependencies": {
     "@storybook/marko": "^10.1.0",

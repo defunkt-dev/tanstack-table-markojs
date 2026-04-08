@@ -13,7 +13,7 @@
 ## Installation
 
 ```bash
-npm install marko-table @tanstack/table-core
+npm install tanstack-table-markojs @tanstack/table-core
 # optional: for virtualized tables
 npm install @tanstack/virtual-core
 ```
@@ -150,7 +150,7 @@ import {
   getFilteredRowModel,
   createColumnHelper,
   type SortingState, type PaginationState, type RowSelectionState,
-} from "marko-table";
+} from "tanstack-table-markojs";
 
 export interface Input { data: Person[] }
 export interface Person { id: number; name: string; age: number }
@@ -281,7 +281,7 @@ Gate everything behind `<if=mounted>` so the server never renders the table cont
 // components/data-table-client.marko
 import { syncMarkoTable, generateTableId, destroyTable, flexRender,
   getCoreRowModel, getSortedRowModel, getPaginationRowModel,
-  type SortingState, type PaginationState } from "marko-table";
+  type SortingState, type PaginationState } from "tanstack-table-markojs";
 
 <let/mounted = false />
 <let/tableId = generateTableId() />
@@ -328,7 +328,7 @@ import {
   syncMarkoTable, generateTableId, destroyTable, syncVirtualizer, flexRender,
   getCoreRowModel, getSortedRowModel, getFilteredRowModel,
   type SortingState, type VirtualRow,
-} from "marko-table";
+} from "tanstack-table-markojs";
 
 <let/mounted = false />
 <let/tableId = generateTableId() />
