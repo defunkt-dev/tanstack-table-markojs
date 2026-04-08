@@ -15,7 +15,8 @@
     "@marko/run": "^0.7.0",
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.23",
-    "marko": "^6.0.0"
+    "marko": "^6.0.0",
+    "marko-table": "file:.."
   },
   "devDependencies": {
     "@storybook/marko": "^10.1.0",

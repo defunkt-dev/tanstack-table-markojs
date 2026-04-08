@@ -7,7 +7,7 @@ import {
   type ColumnFiltersState, type VisibilityState, type ExpandedState,
   type SortingState, type PaginationState, type RowSelectionState,
   type ColumnSizingState,
-} from "../../../lib/marko-table";
+} from "marko-table";
 
 export interface Input { data: Person[] }
 export interface Person {
@@ -46,18 +46,18 @@ static const columns = [
 
 <let/mounted = false />
 <let/tableId = generateTableId() />
-<let/sorting: SortingState = [] />
-<let/pagination: PaginationState = { pageIndex: 0, pageSize: 5 } />
-<let/rowSelection: RowSelectionState = {} />
+<let/sorting = ([] as SortingState) />
+<let/pagination = ({ pageIndex: 0, pageSize: 5 } as PaginationState) />
+<let/rowSelection = ({} as RowSelectionState) />
 <let/globalFilter = "" />
-<let/columnFilters: ColumnFiltersState = [] />
-<let/columnVisibility: VisibilityState = {} />
-<let/expanded: ExpandedState = {} />
-<let/columnSizing: ColumnSizingState = {} />
+<let/columnFilters = ([] as ColumnFiltersState) />
+<let/columnVisibility = ({} as VisibilityState) />
+<let/expanded = ({} as ExpandedState) />
+<let/columnSizing = ({} as ColumnSizingState) />
 <let/showColMenu = false />
 
-<effect() { mounted = true } />
-<effect() { return () => destroyTable(tableId) } />
+<script() { mounted = true } />
+<script() { return () => destroyTable(tableId) } />
 
 <if=!mounted>
   <div class="loading">Loading table…</div>
@@ -86,7 +86,7 @@ static const columns = [
       { sorting, pagination, rowSelection, globalFilter, columnFilters, columnVisibility, expanded, columnSizing },
       (updater) => {
         const cur = { sorting, pagination, rowSelection, globalFilter, columnFilters, columnVisibility, expanded, columnSizing };
-        const nxt = typeof updater === "function" ? updater(cur) : updater;
+        const nxt = (typeof updater === "function" ? updater(cur) : updater) as typeof cur;
         if (nxt.sorting !== sorting) sorting = nxt.sorting;
         if (nxt.pagination !== pagination) pagination = nxt.pagination;
         if (nxt.rowSelection !== rowSelection) rowSelection = nxt.rowSelection;

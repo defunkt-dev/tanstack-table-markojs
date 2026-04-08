@@ -6,7 +6,7 @@ import {
   type ColumnFiltersState, type VisibilityState,
   type SortingState, type RowSelectionState, type ColumnSizingState,
   type VirtualRow,
-} from "../../../lib/marko-table";
+} from "marko-table";
 
 export interface Input { data: Person[] }
 export interface Person {
@@ -40,19 +40,19 @@ static const columns = [
 
 <let/mounted = false />
 <let/tableId = generateTableId() />
-<let/sorting: SortingState = [] />
-<let/rowSelection: RowSelectionState = {} />
+<let/sorting = ([] as SortingState) />
+<let/rowSelection = ({} as RowSelectionState) />
 <let/globalFilter = "" />
-<let/columnFilters: ColumnFiltersState = [] />
-<let/columnVisibility: VisibilityState = {} />
-<let/columnSizing: ColumnSizingState = {} />
+<let/columnFilters = ([] as ColumnFiltersState) />
+<let/columnVisibility = ({} as VisibilityState) />
+<let/columnSizing = ({} as ColumnSizingState) />
 <let/showColMenu = false />
-<let/virtualRows: VirtualRow[] = [] />
+<let/virtualRows = ([] as VirtualRow[]) />
 <let/paddingTop = 0 />
 <let/paddingBottom = 0 />
 
-<effect() { mounted = true } />
-<effect() { return () => destroyTable(tableId) } />
+<script() { mounted = true } />
+<script() { return () => destroyTable(tableId) } />
 
 <if=!mounted>
   <div class="loading">Loading 1,000 rows…</div>
@@ -80,7 +80,7 @@ static const columns = [
       { sorting, rowSelection, globalFilter, columnFilters, columnVisibility, columnSizing },
       (updater) => {
         const cur = { sorting, rowSelection, globalFilter, columnFilters, columnVisibility, columnSizing };
-        const nxt = typeof updater === "function" ? updater(cur) : updater;
+        const nxt = (typeof updater === "function" ? updater(cur) : updater) as typeof cur;
         if (nxt.sorting !== sorting) sorting = nxt.sorting;
         if (nxt.rowSelection !== rowSelection) rowSelection = nxt.rowSelection;
         if (nxt.globalFilter !== globalFilter) globalFilter = nxt.globalFilter;
@@ -156,7 +156,7 @@ static const columns = [
 
   // Effect re-runs when view.rowCount changes (filtering/sorting changes row count).
   // measure() forces the virtualizer to recalculate and fires onChange synchronously.
-  <effect() {
+  <script() {
     syncVirtualizer(tableId, `vscroll-${tableId}`, view.rowCount, () => 49,
       (vRows, top, bot) => { virtualRows = vRows; paddingTop = top; paddingBottom = bot; });
   } />

@@ -1,10 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/marko";
-import DataTableVirtual from "../routes/virtualized/components/data-table-virtual.marko";
+import DataTableVirtual from "../routes/virtual/components/data-table-virtual.marko";
 import type { Person } from "./sample-data";
 import { BASE_DATA, LARGE_DATA } from "./sample-data";
 
-// ── Meta ─────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
+type Input = { data: Person[] };
+
+// Same pattern as DataTableClient: `satisfies Meta<any>` avoids the
+// Template<unknown> / Template<Input> invariance mismatch from the ambient
+// "*.marko" module declaration. `StoryObj<Input>` provides precise
+// `args: Partial<Input>` typing on each story.
 const meta = {
   title: "Tables/Virtualized",
   component: DataTableVirtual,
@@ -15,90 +21,67 @@ const meta = {
           "Row-virtualised table built with **marko-table** + **@tanstack/virtual-core** v3.",
           "",
           "Only the ~15 rows visible in the viewport are in the DOM at any time,",
-          "regardless of how many rows are in the dataset. Padding `<tr>` elements",
-          "above and below the visible window maintain the correct scroll height.",
+          "regardless of dataset size. Padding `<tr>` elements maintain scroll height.",
           "",
-          "Virtualisation is client-only (`<if=mounted>` guard). The `<effect>` that",
-          "drives `syncVirtualizer` re-runs whenever the filtered row count changes,",
-          "calling `measure()` to force a synchronous recalculation.",
+          "The `<effect>` driving `syncVirtualizer` re-runs whenever the filtered",
+          "row count changes, calling `measure()` for synchronous recalculation.",
           "",
-          "**Features:** sorting · global search · per-column filters · column visibility",
-          "· row selection (check-all) · column resizing · no pagination",
+          "**Features:** sorting · global search · per-column filters",
+          "· column visibility · row selection (check-all) · column resizing",
+          "· no pagination (virtualisation replaces it)",
         ].join("\n"),
       },
     },
   },
   argTypes: {
     data: {
-      description: "Array of `Person` objects. Can be arbitrarily large — only visible rows are rendered.",
+      description:
+        "Array of `Person` objects. Can be arbitrarily large — only visible rows are in the DOM.",
       control: false,
     },
   },
-} satisfies Meta<{ data: Person[] }>;
+} satisfies Meta<any>;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
 
-// ── Stories ──────────────────────────────────────────────────────────────────
+type Story = StoryObj<Input>;
+
+// ── Stories ───────────────────────────────────────────────────────────────────
 
 /**
- * Full 1,000-row dataset — the primary showcase story.
- * Scroll the table to watch row virtualisation in action.
- * Open DevTools → Elements and observe that only ~15 rows exist in the DOM
- * at any time regardless of scroll position.
+ * Full 1,000-row dataset — the primary showcase.
+ * Scroll the table and observe in DevTools that only ~15 rows exist in the DOM
+ * regardless of scroll position.
  */
 export const OneThousandRows: Story = {
   name: "1,000 Rows",
-  args: {
-    data: LARGE_DATA,
-  },
+  args: { data: LARGE_DATA },
 };
 
-/**
- * 100 rows — smaller dataset, still virtualised.
- * Useful for verifying that the virtualiser initialises correctly
- * when the full dataset fits within a few viewports.
- */
+/** 100 rows — smaller dataset, still virtualised. */
 export const OneHundredRows: Story = {
   name: "100 Rows",
-  args: {
-    data: LARGE_DATA.slice(0, 100),
-  },
+  args: { data: LARGE_DATA.slice(0, 100) },
 };
 
 /**
- * 20 rows — baseline dataset (same as the client-only stories).
- * With only 20 rows the entire list fits in one viewport, so all rows
- * are visible and in the DOM simultaneously. Confirms the virtualiser
- * degrades gracefully when the dataset is small.
+ * 20 rows — same as the client-only stories.
+ * The entire list fits in one viewport; confirms the virtualiser
+ * degrades gracefully for small datasets.
  */
 export const TwentyRows: Story = {
   name: "20 Rows (fits in viewport)",
-  args: {
-    data: BASE_DATA,
-  },
+  args: { data: BASE_DATA },
 };
 
-/**
- * Active users only — filtered down from the full dataset.
- * Verifies that the row-count signal correctly drives `syncVirtualizer`
- * when the data prop itself changes (not just in-table filtering).
- */
+/** Active users only — verifies row-count changes drive `syncVirtualizer`. */
 export const ActiveUsersOnly: Story = {
   name: "Active Users Only",
-  args: {
-    data: LARGE_DATA.filter((p) => p.status === "active"),
-  },
+  args: { data: LARGE_DATA.filter((p) => p.status === "active") },
 };
 
-/**
- * Empty state — no rows.
- * Verifies the "No results found." empty-state renders correctly when
- * the virtualiser receives `count = 0`.
- */
+/** Empty state — verifies "No results found." when virtualiser receives count = 0. */
 export const Empty: Story = {
   name: "Empty State",
-  args: {
-    data: [],
-  },
+  args: { data: [] },
 };

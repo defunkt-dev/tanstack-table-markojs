@@ -14,14 +14,21 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "noEmit": true
+    "noEmit": true,
+    "rootDir": "..",
+    "paths": {
+      "marko-table": [
+        "../src/index.ts"
+      ]
+    }
   },
   "include": [
-    "src/stories/**/*",
+    "src/**/*",
     ".storybook/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "src/lib"
   ]
 }
