@@ -1,10 +1,9 @@
-
 <p align="center">
-  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/marko.png" alt="Marko" height="120" />
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/marko.png?raw=true" alt="Marko" height="120" />
   &nbsp;&nbsp;
-  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='120' viewBox='0 0 40 120'%3E%3Ctext x='20' y='68' text-anchor='middle' font-family='system-ui' font-size='48' font-weight='300' fill='%23666'%3E%2B%3C/text%3E%3C/svg%3E" alt="+" height="120" />
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/plus.svg?raw=true" alt="+" height="120" />
   &nbsp;&nbsp;
-  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/tanstack.png" alt="TanStack" height="120" />
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/tanstack.png?raw=true" alt="TanStack" height="120" />
 </p>
 
 # tanstack-table-markojs
