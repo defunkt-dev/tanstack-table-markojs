@@ -18,6 +18,82 @@ npm install marko-table @tanstack/table-core
 npm install @tanstack/virtual-core
 ```
 
+---
+
+## Marko 6 resumability — the full picture
+
+### What Marko 6's resumability promises
+
+Marko's resumability model means **zero JS re-execution on the client**. The server renders HTML, serializes all reactive state into the page as JSON (the "resume frame"), and the client picks up exactly where the server left off — without re-running any initialization code. This is fundamentally different from hydration (React, Vue) where the whole component tree re-executes on the client to attach event listeners.
+
+The three rules that govern how this adapter works:
+
+**Rule 1 — `<const>` does not re-run on the client until a `<let>` signal changes.**
+When Marko resumes, `<const>` values are restored from the resume frame. The expression is not re-evaluated. This is what makes resumability zero-cost — but it also means that if `syncMarkoTable` returns the same object reference every call (which it does, from the module-level Map), Marko's `_const` sees `prev === next` and skips all downstream updates forever. This is why the IIFE is mandatory.
+
+**Rule 2 — Anything inside an event handler closure gets serialized.**
+When Marko writes the resume frame, it serializes not just `<let>` signals but also any values captured in event handler closures. If your `onClick` closes over a TanStack `Row` or `Table` object, Marko tries to `JSON.stringify` it — and throws:
+```
+Unable to serialize "t" in src/routes/components/data-table.marko
+  (reading _features[0].createTable)
+```
+This was the exact error that appeared when `<const/t = syncMarkoTable(...)>` stored the table instance in Marko scope. The IIFE fixes it by keeping `t` as a local JavaScript variable that never touches the Marko scope — the resume frame only sees the plain serializable object returned by the IIFE.
+
+**Rule 3 — Only JSON-expressible values can survive the server→client boundary.**
+The resume frame is JSON embedded in the HTML. Primitive values and plain objects round-trip perfectly. A TanStack Table instance contains functions, class prototypes, and closures — `JSON.stringify` throws on all of them. Only the state the instance operates on (sorting arrays, pagination objects, etc.) can be serialized. The instance itself cannot.
+
+### What "not serializable" actually means
+
+When you see a serialization error, Marko is telling you: "I tried to write this value into the JSON resume frame, and failed." The value that failed was the TanStack Table instance — specifically `_features[0].createTable`, a function on the instance's prototype chain.
+
+The fix in every case is the same: **move the non-serializable value out of Marko scope entirely**. The IIFE does this — `t` is a plain local JavaScript variable inside a function. It never appears in any Marko `<let>` or `<const>` assignment at the top level of the template, so Marko never tries to serialize it.
+
+The same rule applies to event handlers in SSR components. If your `onChange` handler closes over `h` (a TanStack `Header` object), Marko will try to serialize `h` and fail. The fix: close only over `h.colId` (a string) and the `<let>` signals. Strings and signals are serializable; TanStack objects are not.
+
+### The philosophical gap — this is NOT true resumability
+
+True Marko resumability would mean: `syncMarkoTable` runs **only on the server**, the table instance is somehow encoded in the resume frame, and the client resumes from that exact instance without re-running anything. That is not what we have.
+
+What we actually have is the **closest possible approximation**:
+
+- The meaningful state (`sorting`, `pagination`, `rowSelection`, etc.) **is** fully serialized and resumes with zero re-execution ✓
+- The table instance (the computation engine) **cannot** be serialized — it is recreated on the client the **first time a `<let>` signal changes** via the IIFE expression re-running
+
+The gap: that first `createTable()` call on the client, triggered by the first user interaction. It takes ~1–2ms, is invisible to users, and produces an instance with identical behaviour to the server's. But philosophically, it is re-execution — which means this adapter cannot claim true resumability.
+
+To achieve true resumability with a data table you would need one of:
+
+1. **TanStack Table supporting serialization** — it doesn't and likely won't; the instance is inherently stateful with functions and closures throughout
+2. **Pure functions over serializable state** — implement sorting, filtering, and pagination yourself as `sortData(rows, sorting)`, `filterData(rows, filter)` etc., skipping TanStack Table entirely
+3. **Server-side computation with server actions** — run all table logic on the server, fetch updated rows on each interaction — trading client-side reactivity for genuine zero-JS resumability
+
+None of these tradeoffs are worth it for most applications. The right call is what this adapter does: serialize everything that can be serialized, recreate what cannot be cheaply on first interaction. The output is identical. The cost is one imperceptible `createTable()` call.
+
+### Why the IIFE solves the serialization error
+
+When `<const/t = syncMarkoTable(...)>` is written at the top level of a Marko template, Marko stores `t` in the component scope — the same scope that gets serialized into the resume frame. When Marko encounters a non-serializable value in that scope, it throws the serialization error.
+
+The IIFE wraps `syncMarkoTable` in a function that returns a new plain object:
+
+```marko
+<const/view = (() => {
+  const t = syncMarkoTable(...);  // t is a local JS variable — never in Marko scope
+  return {
+    tableRows: t.getRowModel().rows.map(row => ({
+      id: row.id,          // string — serializable ✓
+      isSelected: row.getIsSelected(),  // boolean — serializable ✓
+    })),
+    pageCount: t.getPageCount(),  // number — serializable ✓
+  };
+})() />
+```
+
+`view` is what Marko stores in scope — a plain object of strings, numbers, booleans, and arrays of plain objects. All serializable. `t` never appears in the scope at all.
+
+This pattern also solves the `_const` same-reference problem: the IIFE returns a **new object** every render (new reference) — Marko's `!==` check always passes and downstream updates always propagate. If `t` were stored directly, the same Table instance reference would return every render and Marko would skip all updates after the first.
+
+---
+
 ## Core concept: the IIFE pattern
 
 The single most important thing to understand is **why** this adapter uses an IIFE for the `<const>`.
