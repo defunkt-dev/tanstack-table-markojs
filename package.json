@@ -14,7 +14,8 @@
     "table",
     "datagrid",
     "ssr",
-    "resumability"
+    "resumability",
+    "markojs"
   ],
   "type": "module",
   "main": "./dist/index.cjs",
