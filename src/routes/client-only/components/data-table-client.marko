@@ -1,0 +1,415 @@
+import {
+  syncMarkoTable, generateTableId, destroyTable, getTable, flexRender,
+  getCoreRowModel, getSortedRowModel, getPaginationRowModel,
+  getFilteredRowModel, getExpandedRowModel,
+  getFacetedRowModel, getFacetedUniqueValues,
+  createColumnHelper,
+  type ColumnFiltersState, type VisibilityState, type ExpandedState,
+  type SortingState, type PaginationState, type RowSelectionState,
+  type ColumnSizingState,
+} from "../../../lib/marko-table";
+
+export interface Input { data: Person[] }
+export interface Person {
+  id: number; firstName: string; lastName: string;
+  age: number; status: "active"|"inactive"|"pending"; visits: number;
+}
+
+static const ch = createColumnHelper<Person>();
+static const columns = [
+  ch.display({
+    id: "expand", header: () => "", size: 36,
+    enableSorting: false, enableColumnFilter: false, enableHiding: false, enableResizing: false,
+    cell: ({ row }) => row.getIsExpanded() ? "▼" : "▶",
+  }),
+  ch.display({
+    id: "select", header: () => "☐", size: 36,
+    enableSorting: false, enableColumnFilter: false, enableHiding: false, enableResizing: false,
+    cell: ({ row }) => row.getIsSelected() ? "☑" : "☐",
+  }),
+  ch.accessor("firstName", { header: "First Name", size: 130, cell: i => i.getValue(), filterFn: "includesString" }),
+  ch.accessor("lastName",  { header: "Last Name",  size: 130, cell: i => i.getValue(), filterFn: "includesString" }),
+  ch.accessor("age", {
+    header: "Age", size: 80, cell: i => i.getValue(),
+    filterFn: (row, colId, val) => !val || (row.getValue(colId) as number) >= Number(val),
+  }),
+  ch.accessor("status", {
+    header: "Status", size: 140, filterFn: "equals",
+    cell: i => i.getValue() === "active" ? "🟢 Active"
+             : i.getValue() === "inactive" ? "🔴 Inactive" : "🟡 Pending",
+  }),
+  ch.accessor("visits", {
+    header: "Visits", size: 100, cell: i => (i.getValue() as number).toLocaleString(),
+    filterFn: (row, colId, val) => !val || (row.getValue(colId) as number) >= Number(val),
+  }),
+];
+
+<let/mounted = false />
+<let/tableId = generateTableId() />
+<let/sorting: SortingState = [] />
+<let/pagination: PaginationState = { pageIndex: 0, pageSize: 5 } />
+<let/rowSelection: RowSelectionState = {} />
+<let/globalFilter = "" />
+<let/columnFilters: ColumnFiltersState = [] />
+<let/columnVisibility: VisibilityState = {} />
+<let/expanded: ExpandedState = {} />
+<let/columnSizing: ColumnSizingState = {} />
+<let/showColMenu = false />
+
+<effect() { mounted = true } />
+<effect() { return () => destroyTable(tableId) } />
+
+<if=!mounted>
+  <div class="loading">Loading table…</div>
+</if>
+
+<if=mounted>
+  // IIFE: `t` is a LOCAL JS variable — never stored in Marko scope.
+  // Returns a NEW plain object every render → Marko always detects change
+  // and propagates updates to all <for> loops and <if> blocks.
+  <const/view = (() => {
+    const t = syncMarkoTable(
+      tableId,
+      {
+        data: input.data, columns,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getExpandedRowModel: getExpandedRowModel(),
+        getFacetedRowModel: getFacetedRowModel(),
+        getFacetedUniqueValues: getFacetedUniqueValues(),
+        enableExpanding: true, getRowCanExpand: () => true,
+        enableRowSelection: true, globalFilterFn: "includesString",
+        enableColumnResizing: true, columnResizeMode: "onChange",
+      },
+      { sorting, pagination, rowSelection, globalFilter, columnFilters, columnVisibility, expanded, columnSizing },
+      (updater) => {
+        const cur = { sorting, pagination, rowSelection, globalFilter, columnFilters, columnVisibility, expanded, columnSizing };
+        const nxt = typeof updater === "function" ? updater(cur) : updater;
+        if (nxt.sorting !== sorting) sorting = nxt.sorting;
+        if (nxt.pagination !== pagination) pagination = nxt.pagination;
+        if (nxt.rowSelection !== rowSelection) rowSelection = nxt.rowSelection;
+        if (nxt.globalFilter !== globalFilter) globalFilter = nxt.globalFilter;
+        if (nxt.columnFilters !== columnFilters) columnFilters = nxt.columnFilters;
+        if (nxt.columnVisibility !== columnVisibility) columnVisibility = nxt.columnVisibility;
+        if (nxt.expanded !== expanded) expanded = nxt.expanded;
+        if (nxt.columnSizing !== columnSizing) columnSizing = nxt.columnSizing;
+      }
+    );
+
+    const statusFacets = (() => {
+      const col = t.getColumn("status");
+      if (!col) return [] as Array<{value: string, count: number}>;
+      return Array.from(col.getFacetedUniqueValues().entries())
+        .map(([v, count]) => ({ value: String(v), count }))
+        .sort((a, b) => a.value.localeCompare(b.value));
+    })();
+
+    return {
+      headerGroups: t.getHeaderGroups().map(hg => ({
+        id: hg.id,
+        headers: hg.headers.map(h => ({
+          id: h.id, colId: h.column.id, colSpan: h.colSpan,
+          isPlaceholder: h.isPlaceholder,
+          isSelectCol: h.column.id === "select",
+          canSort: h.column.getCanSort(),
+          isSorted: h.column.getIsSorted(),
+          canResize: h.column.getCanResize(),
+          width: h.column.getSize(),
+          label: String(flexRender(h.column.columnDef.header, h.getContext()) ?? ""),
+          filterType: h.column.id === "expand" || h.column.id === "select" ? "none"
+            : h.column.id === "status" ? "select"
+            : h.column.id === "age" || h.column.id === "visits" ? "number"
+            : h.column.getCanFilter() ? "text" : "none",
+          filterValue: String(h.column.getFilterValue() ?? ""),
+        })),
+      })),
+
+      tableRows: t.getRowModel().rows.map(row => ({
+        id: row.id,
+        isSelected: row.getIsSelected(),
+        isExpanded: row.getIsExpanded(),
+        original: { ...row.original } as Person,
+        cells: row.getVisibleCells().map(cell => ({
+          id: cell.id, colId: cell.column.id,
+          value: String(flexRender(cell.column.columnDef.cell, cell.getContext()) ?? ""),
+        })),
+      })),
+
+      allColumns: t.getAllLeafColumns()
+        .filter(col => col.getCanHide())
+        .map(col => ({
+          id: col.id,
+          label: typeof col.columnDef.header === "string" ? col.columnDef.header : col.id,
+          isVisible: col.getIsVisible(),
+        })),
+
+      statusFacets,
+      tableWidth: t.getVisibleLeafColumns().reduce((sum, col) => sum + col.getSize(), 0),
+      visibleColCount: t.getVisibleLeafColumns().length,
+      pageIndex: t.getState().pagination.pageIndex,
+      pageSize: t.getState().pagination.pageSize,
+      pageCount: t.getPageCount(),
+      canPrev: t.getCanPreviousPage(),
+      canNext: t.getCanNextPage(),
+      totalFiltered: t.getFilteredRowModel().rows.length,
+      selCount: Object.keys(rowSelection).length,
+      allSelected: t.getIsAllPageRowsSelected(),
+      someSelected: t.getIsSomePageRowsSelected(),
+      hasFilters: !!(columnFilters as any[]).length || globalFilter !== "",
+    };
+  })() />
+
+  <div class="dt-wrap">
+    <div class="toolbar">
+      <input type="text" placeholder="Search all columns…" value=globalFilter
+        onInput=(e) => { globalFilter = (e.target as HTMLInputElement).value } />
+      <div class="toolbar-right">
+        <if=view.hasFilters>
+          <button class="btn-ghost" onClick=() => { columnFilters = []; globalFilter = "" }>✕ Clear</button>
+        </if>
+        <span class="sel-count" hidden=!view.selCount>${view.selCount} selected</span>
+        <button class="btn-outline" onClick=() => { showColMenu = !showColMenu }>
+          Columns ${showColMenu ? "▲" : "▼"}
+        </button>
+      </div>
+    </div>
+
+    <if=showColMenu>
+      <div class="col-menu">
+        <for|col| of=view.allColumns>
+          <label class="col-toggle">
+            <input type="checkbox" checked=col.isVisible
+              onChange=() => {
+                columnVisibility = { ...(columnVisibility as Record<string,boolean>), [col.id]: !col.isVisible };
+              } />
+            ${col.label}
+          </label>
+        </for>
+      </div>
+    </if>
+
+    <div class="table-scroll">
+      <table class="dt" style=`min-width: ${view.tableWidth}px; table-layout: fixed;`>
+        <colgroup>
+          <for|h| of=view.headerGroups[0].headers>
+            <col style=`width: ${h.width}px;` />
+          </for>
+        </colgroup>
+
+        <thead>
+          <for|hg| of=view.headerGroups>
+            <tr>
+              <for|h| of=hg.headers>
+                <th
+                  class=`${h.canSort ? "sortable" : ""} ${h.isSorted ? "sorted" : ""}`.trim()
+                  colspan=h.colSpan
+                  onClick=h.canSort ? (e) => {
+                    const isMulti = (e as MouseEvent).shiftKey;
+                    const cur = sorting as Array<{id: string, desc: boolean}>;
+                    const existing = cur.find(s => s.id === h.colId);
+                    if (!existing) {
+                      sorting = isMulti ? [...cur, { id: h.colId, desc: false }] : [{ id: h.colId, desc: false }];
+                    } else if (!existing.desc) {
+                      sorting = cur.map(s => s.id === h.colId ? { ...s, desc: true } : s);
+                    } else {
+                      sorting = isMulti ? cur.filter(s => s.id !== h.colId) : [];
+                    }
+                  } : undefined
+                >
+                  <if=!h.isPlaceholder>
+                    <if=h.isSelectCol>
+                      <input type="checkbox"
+                        checked=view.allSelected
+                        checkedChange=(_v) => {
+                          if (view.allSelected) {
+                            rowSelection = {};
+                          } else {
+                            const sel = {} as Record<string,boolean>;
+                            view.tableRows.forEach((r: any) => { sel[r.id] = true; });
+                            rowSelection = sel;
+                          }
+                        } />
+                    </if>
+                    <else>
+                      ${h.label}
+                      <if=h.isSorted === "asc"> ▲</if>
+                      <if=h.isSorted === "desc"> ▼</if>
+                    </else>
+                    <if=h.canResize>
+                      <div class="resize-handle"
+                        onPointerDown=(startE) => {
+                          startE.preventDefault();
+                          const startX = startE.clientX;
+                          const startW = (columnSizing as Record<string,number>)[h.colId] ?? h.width;
+                          const onMove = (e: Event) => {
+                            columnSizing = { ...(columnSizing as Record<string,number>),
+                              [h.colId]: Math.max(40, startW + (e as PointerEvent).clientX - startX) };
+                          };
+                          document.addEventListener("pointermove", onMove);
+                          document.addEventListener("pointerup", () =>
+                            document.removeEventListener("pointermove", onMove), { once: true });
+                        }
+                      />
+                    </if>
+                  </if>
+                </th>
+              </for>
+            </tr>
+          </for>
+
+          <tr class="filter-row">
+            <for|h| of=view.headerGroups[0].headers>
+              <th>
+                <if=h.filterType === "select">
+                  <select onChange=(e) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    const cur = columnFilters as Array<{id: string, value: unknown}>;
+                    columnFilters = val
+                      ? [...cur.filter(f => f.id !== h.colId), { id: h.colId, value: val }]
+                      : cur.filter(f => f.id !== h.colId);
+                  }>
+                    <option value="" selected=h.filterValue === "">All</option>
+                    <for|f| of=view.statusFacets>
+                      <option value=f.value selected=h.filterValue === f.value>${f.value} (${f.count})</option>
+                    </for>
+                  </select>
+                </if>
+                <else-if=h.filterType === "number" || h.filterType === "text">
+                  <input type=h.filterType
+                    placeholder=h.filterType === "number" ? `≥ ${h.label}` : `Filter…`
+                    value=h.filterValue
+                    onInput=(e) => {
+                      const val = (e.target as HTMLInputElement).value;
+                      const cur = columnFilters as Array<{id: string, value: unknown}>;
+                      columnFilters = val
+                        ? [...cur.filter(f => f.id !== h.colId), { id: h.colId, value: val }]
+                        : cur.filter(f => f.id !== h.colId);
+                    } />
+                </else-if>
+              </th>
+            </for>
+          </tr>
+        </thead>
+
+        <tbody>
+          <for|row| of=view.tableRows>
+            <tr
+              class=row.isSelected ? "row selected" : "row"
+              onClick=() => {
+                const sel = { ...(rowSelection as Record<string,boolean>) };
+                if (sel[row.id]) delete sel[row.id]; else sel[row.id] = true;
+                rowSelection = sel;
+              }
+            >
+              <for|cell| of=row.cells>
+                <td>
+                  <if=cell.colId === "expand">
+                    <button class="expand-btn" onClick=(e) => {
+                      e.stopPropagation();
+                      const cur = expanded as Record<string,boolean>;
+                      const e2 = { ...cur };
+                      if (e2[row.id]) delete e2[row.id]; else e2[row.id] = true;
+                      expanded = e2;
+                    }>${row.isExpanded ? "▼" : "▶"}</button>
+                  </if>
+                  <else-if=cell.colId === "select">
+                    <input type="checkbox" checked=row.isSelected
+                      checkedChange=(v) => {
+                        const sel = { ...(rowSelection as Record<string,boolean>) };
+                        if (v) sel[row.id] = true; else delete sel[row.id];
+                        rowSelection = sel;
+                      }
+                      onClick=(e) => e.stopPropagation() />
+                  </else-if>
+                  <else>${cell.value}</else>
+                </td>
+              </for>
+            </tr>
+            <if=row.isExpanded>
+              <tr class="detail-row">
+                <td colspan=view.visibleColCount>
+                  <div class="detail-card">
+                    <div class="detail-grid">
+                      <div class="detail-item"><span class="detail-label">Full Name</span><span>${row.original.firstName} ${row.original.lastName}</span></div>
+                      <div class="detail-item"><span class="detail-label">Age</span><span>${row.original.age}</span></div>
+                      <div class="detail-item"><span class="detail-label">Status</span><span>${row.original.status}</span></div>
+                      <div class="detail-item"><span class="detail-label">Visits</span><span>${row.original.visits.toLocaleString()}</span></div>
+                      <div class="detail-item"><span class="detail-label">ID</span><span>#${row.original.id}</span></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </if>
+          </for>
+          <if=view.tableRows.length === 0>
+            <tr><td colspan=view.visibleColCount class="empty">No results found.</td></tr>
+          </if>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <div class="pager-btns">
+        <button disabled=!view.canPrev onClick=() => { pagination = { ...pagination, pageIndex: 0 } }>«</button>
+        <button disabled=!view.canPrev onClick=() => { pagination = { ...pagination, pageIndex: view.pageIndex - 1 } }>‹</button>
+        <button disabled=!view.canNext onClick=() => { pagination = { ...pagination, pageIndex: view.pageIndex + 1 } }>›</button>
+        <button disabled=!view.canNext onClick=() => { pagination = { ...pagination, pageIndex: view.pageCount - 1 } }>»</button>
+      </div>
+      <span class="pager-info">Page ${view.pageIndex + 1} of ${view.pageCount} (${view.totalFiltered} rows)</span>
+      <select value=view.pageSize
+        onChange=(e) => { pagination = { pageIndex: 0, pageSize: Number((e.target as HTMLSelectElement).value) } }>
+        <for|n| of=[5, 10, 20, 50]><option value=n>Show ${n}</option></for>
+      </select>
+    </div>
+  </div>
+</if>
+
+<style>
+  .loading { padding: 40px; text-align: center; color: #9ca3af; font-size: 14px; }
+  .dt-wrap { font-family: system-ui, sans-serif; max-width: 100%; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; }
+  .toolbar input { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; flex: 1; max-width: 280px; font-size: 14px; outline: none; }
+  .toolbar input:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px #eff6ff; }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; }
+  .btn-ghost { background: none; border: none; color: #6b7280; cursor: pointer; font-size: 13px; padding: 6px 8px; border-radius: 6px; }
+  .btn-ghost:hover { background: #f3f4f6; color: #111827; }
+  .btn-outline { padding: 6px 12px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn-outline:hover { background: #f9fafb; }
+  .sel-count { font-size: 13px; color: #2563eb; font-weight: 500; }
+  .col-menu { display: flex; flex-wrap: wrap; gap: 4px 16px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+  .col-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+  .table-scroll { overflow-x: auto; }
+  .dt { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .dt th { background: #f9fafb; padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; white-space: nowrap; user-select: none; position: relative; overflow: hidden; }
+  .dt th.sortable { cursor: pointer; }
+  .dt th.sortable:hover { background: #f3f4f6; }
+  .dt th.sorted { color: #2563eb; }
+  .resize-handle { position: absolute; right: 0; top: 0; height: 100%; width: 5px; cursor: col-resize; background: transparent; touch-action: none; }
+  .resize-handle:hover { background: #93c5fd; }
+  .filter-row th { background: #f3f4f6; padding: 5px 8px; }
+  .filter-row input, .filter-row select { width: 100%; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; background: white; box-sizing: border-box; }
+  .filter-row input:focus, .filter-row select:focus { outline: none; border-color: #93c5fd; }
+  .dt td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dt .row:last-child td { border-bottom: none; }
+  .dt .row.selected td { background: #eff6ff; }
+  .dt tbody .row:hover td { background: #f9fafb; cursor: pointer; }
+  .dt .row.selected:hover td { background: #dbeafe; }
+  .expand-btn { background: none; border: none; cursor: pointer; font-size: 11px; padding: 2px 4px; color: #6b7280; border-radius: 4px; }
+  .expand-btn:hover { background: #e5e7eb; }
+  .detail-row td { background: #f8fafc !important; padding: 0 !important; border-bottom: 2px solid #e5e7eb !important; }
+  .detail-card { padding: 16px 20px; }
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .detail-item { display: flex; flex-direction: column; gap: 2px; }
+  .detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; font-weight: 600; }
+  .detail-item span:last-child { font-size: 14px; color: #111827; font-weight: 500; }
+  .empty { text-align: center; color: #9ca3af; padding: 40px !important; }
+  .pager { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 12px; flex-wrap: wrap; }
+  .pager-btns { display: flex; gap: 4px; }
+  .pager-btns button { padding: 6px 12px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-size: 16px; line-height: 1; }
+  .pager-btns button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .pager-btns button:not(:disabled):hover { background: #f3f4f6; }
+  .pager-info { font-size: 13px; color: #6b7280; }
+  .pager select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+</style>

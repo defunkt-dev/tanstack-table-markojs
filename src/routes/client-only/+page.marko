@@ -1,0 +1,66 @@
+import DataTableClient from "./components/data-table-client.marko";
+import type { Person } from "./components/data-table-client.marko";
+
+static const people: Person[] = [
+  { id:  1, firstName: "Tanner",    lastName: "Linsley",  age: 24, status: "active",   visits: 100 },
+  { id:  2, firstName: "Tandy",     lastName: "Miller",   age: 40, status: "inactive", visits:  40 },
+  { id:  3, firstName: "Joe",       lastName: "Dirte",    age: 45, status: "pending",  visits:  20 },
+  { id:  4, firstName: "Sara",      lastName: "Johnson",  age: 31, status: "active",   visits: 572 },
+  { id:  5, firstName: "Michael",   lastName: "Brown",    age: 28, status: "active",   visits: 211 },
+  { id:  6, firstName: "Emily",     lastName: "Davis",    age: 35, status: "inactive", visits:  88 },
+  { id:  7, firstName: "Chris",     lastName: "Wilson",   age: 22, status: "pending",  visits:  15 },
+  { id:  8, firstName: "Jessica",   lastName: "Moore",    age: 29, status: "active",   visits: 304 },
+  { id:  9, firstName: "Daniel",    lastName: "Taylor",   age: 52, status: "inactive", visits:  63 },
+  { id: 10, firstName: "Ashley",    lastName: "Anderson", age: 44, status: "active",   visits: 191 },
+  { id: 11, firstName: "Matthew",   lastName: "Thomas",   age: 37, status: "pending",  visits:   7 },
+  { id: 12, firstName: "Amanda",    lastName: "Jackson",  age: 26, status: "active",   visits: 437 },
+  { id: 13, firstName: "Joshua",    lastName: "White",    age: 33, status: "inactive", visits: 119 },
+  { id: 14, firstName: "Stephanie", lastName: "Harris",   age: 41, status: "active",   visits: 982 },
+  { id: 15, firstName: "Andrew",    lastName: "Martin",   age: 19, status: "pending",  visits:   3 },
+  { id: 16, firstName: "Lauren",    lastName: "Garcia",   age: 58, status: "active",   visits: 774 },
+  { id: 17, firstName: "Ryan",      lastName: "Martinez", age: 47, status: "inactive", visits:  29 },
+  { id: 18, firstName: "Megan",     lastName: "Robinson", age: 23, status: "active",   visits: 156 },
+  { id: 19, firstName: "Kevin",     lastName: "Clark",    age: 36, status: "pending",  visits:  44 },
+  { id: 20, firstName: "Hannah",    lastName: "Lewis",    age: 30, status: "active",   visits: 623 },
+];
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>TanStack Table + Marko 6 — Client Only</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; background: #f8fafc; padding: 40px 24px; color: #111827; }
+      h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+      .sub { color: #6b7280; font-size: 14px; margin-bottom: 20px; }
+      .nav { display: flex; gap: 16px; margin-bottom: 20px; }
+      .nav a { color: #2563eb; font-size: 14px; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+      .badge { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 500; }
+      .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+    </style>
+  </head>
+  <body>
+    <div class="nav">
+      <a href="/">← SSR version</a>
+      <a href="/virtual">→ Virtualized (1,000 rows)</a>
+    </div>
+    <h1>Client-Only</h1>
+    <p class="sub">No SSR — all rendering happens on the client. Simpler code, no serialization constraints.</p>
+    <div class="badges">
+      <span class="badge">✓ Sorting</span>
+      <span class="badge">✓ Pagination</span>
+      <span class="badge">✓ Global + Column Filters</span>
+      <span class="badge">✓ Column Visibility</span>
+      <span class="badge">✓ Row Expansion</span>
+      <span class="badge">✓ Row Selection</span>
+      <span class="badge">✓ Column Resizing</span>
+    </div>
+    <div class="card">
+      <${DataTableClient} data=people />
+    </div>
+  </body>
+</html>
