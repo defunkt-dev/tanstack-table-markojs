@@ -1,4 +1,4 @@
-# tanstack-table-markojs
+# marko-table
 
 > Marko 6 adapter for [@tanstack/table-core](https://tanstack.com/table) — SSR, CSR, and virtualized tables with full resumability support.
 
@@ -28,10 +28,9 @@ Marko's `_const` runtime function uses strict reference equality (`!==`) to dete
 // Marko runtime (simplified)
 function _const(key, fn) {
   return (scope, value) => {
-    if (scope[key] !== value) {
-      // ← strict equality
+    if (scope[key] !== value) {  // ← strict equality
       scope[key] = value;
-      fn(scope); // only propagates if value changed
+      fn(scope);                 // only propagates if value changed
     }
   };
 }
@@ -88,10 +87,12 @@ static const columns = [
 
 // ── Serializable state in <let> ───────────────────────────────────────────────
 // These are written to the resume frame. Every value must be JSON-serializable.
+// Use `as Type` casts on empty arrays/objects so the Marko language server
+// infers the correct type rather than `never[]` or `{}`.
 <let/tableId = generateTableId() />
-<let/sorting: SortingState = [] />
-<let/pagination: PaginationState = { pageIndex: 0, pageSize: 10 } />
-<let/rowSelection: RowSelectionState = {} />
+<let/sorting = ([] as SortingState) />
+<let/pagination = ({ pageIndex: 0, pageSize: 10 } as PaginationState) />
+<let/rowSelection = ({} as RowSelectionState) />
 <let/globalFilter = "" />
 
 // ── IIFE: all table reads are local to this function ─────────────────────────
@@ -113,7 +114,8 @@ static const columns = [
     { sorting, pagination, rowSelection, globalFilter },
     (updater) => {
       const cur = { sorting, pagination, rowSelection, globalFilter };
-      const nxt = typeof updater === "function" ? updater(cur) : updater;
+      // Cast nxt as typeof cur so property accesses are typed correctly
+      const nxt = (typeof updater === "function" ? updater(cur) : updater) as typeof cur;
       if (nxt.sorting !== sorting) sorting = nxt.sorting;
       if (nxt.pagination !== pagination) pagination = nxt.pagination;
       if (nxt.rowSelection !== rowSelection) rowSelection = nxt.rowSelection;
@@ -122,11 +124,10 @@ static const columns = [
   );
 
   return {
-    // Pre-map TanStack objects to plain serializable values
     tableRows: t.getRowModel().rows.map(row => ({
-      id: row.id,                          // string ✓
-      isSelected: row.getIsSelected(),     // boolean ✓
-      original: { ...row.original },       // plain data ✓
+      id: row.id,
+      isSelected: row.getIsSelected(),
+      original: { ...row.original },
       cells: row.getVisibleCells().map(cell => ({
         id: cell.id,
         colId: cell.column.id,
@@ -152,7 +153,7 @@ static const columns = [
   };
 })() />
 
-<effect() { return () => destroyTable(tableId) } />
+<script() { return () => destroyTable(tableId) } />
 
 <table>
   <thead>
@@ -208,11 +209,11 @@ import { syncMarkoTable, generateTableId, destroyTable, flexRender,
 
 <let/mounted = false />
 <let/tableId = generateTableId() />
-<let/sorting: SortingState = [] />
-<let/pagination: PaginationState = { pageIndex: 0, pageSize: 10 } />
+<let/sorting = ([] as SortingState) />
+<let/pagination = ({ pageIndex: 0, pageSize: 10 } as PaginationState) />
 
-<effect() { mounted = true } />
-<effect() { return () => destroyTable(tableId) } />
+<script() { mounted = true } />
+<script() { return () => destroyTable(tableId) } />
 
 <if=!mounted>
   <div>Loading...</div>
@@ -221,15 +222,18 @@ import { syncMarkoTable, generateTableId, destroyTable, flexRender,
 <if=mounted>
   // Same IIFE pattern — same-reference issue applies regardless of SSR
   <const/view = (() => {
-    const t = syncMarkoTable(tableId, { ... }, { sorting, pagination }, setState);
+    const t = syncMarkoTable(tableId, { ... }, { sorting, pagination }, (updater) => {
+      const cur = { sorting, pagination };
+      const nxt = (typeof updater === "function" ? updater(cur) : updater) as typeof cur;
+      if (nxt.sorting !== sorting) sorting = nxt.sorting;
+      if (nxt.pagination !== pagination) pagination = nxt.pagination;
+    });
     return {
       tableRows: t.getRowModel().rows.map(row => ({ ... })),
       // ... etc
     };
   })() />
 
-  // Inside <if=mounted>, Marko doesn't serialize content.
-  // So you CAN close over `view` in handlers (it's a plain object).
   <table>
     <for|row| of=view.tableRows>
       <tr>...</tr>
@@ -252,15 +256,15 @@ import {
 
 <let/mounted = false />
 <let/tableId = generateTableId() />
-<let/sorting: SortingState = [] />
+<let/sorting = ([] as SortingState) />
 <let/globalFilter = "" />
 // VirtualRow elements are plain objects — serializable
-<let/virtualRows: VirtualRow[] = [] />
+<let/virtualRows = ([] as VirtualRow[]) />
 <let/paddingTop = 0 />
 <let/paddingBottom = 0 />
 
-<effect() { mounted = true } />
-<effect() { return () => destroyTable(tableId) } />
+<script() { mounted = true } />
+<script() { return () => destroyTable(tableId) } />
 
 <if=mounted>
   <const/view = (() => {
@@ -269,7 +273,12 @@ import {
       { data: input.data, columns, getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(), getFilteredRowModel: getFilteredRowModel() },
       { sorting, globalFilter },
-      setState,
+      (updater) => {
+        const cur = { sorting, globalFilter };
+        const nxt = (typeof updater === "function" ? updater(cur) : updater) as typeof cur;
+        if (nxt.sorting !== sorting) sorting = nxt.sorting;
+        if (nxt.globalFilter !== globalFilter) globalFilter = nxt.globalFilter;
+      },
     );
 
     const rows = t.getRowModel().rows;
@@ -294,7 +303,7 @@ import {
 
   // Effect re-runs when view.rowCount changes (after filter/sort)
   // measure() forces virtualizer to recalculate and fires onChange synchronously
-  <effect() {
+  <script() {
     syncVirtualizer(tableId, `scroll-${tableId}`, view.rowCount, () => 49,
       (vRows, top, bot) => { virtualRows = vRows; paddingTop = top; paddingBottom = bot; });
   } />
@@ -329,12 +338,12 @@ import {
 
 Creates or retrieves a TanStack Table instance and syncs options with current reactive state.
 
-| Parameter      | Type                      | Description                                         |
-| -------------- | ------------------------- | --------------------------------------------------- |
-| `tableId`      | `string`                  | ID from `generateTableId()`, stored in `<let>`      |
-| `options`      | `TableOptions<TData>`     | Any valid TanStack Table options                    |
-| `currentState` | `Record<string, unknown>` | Current values of all state `<let>` signals         |
-| `setState`     | `(updater) => void`       | Writes TanStack state changes back to Marko signals |
+| Parameter | Type | Description |
+|---|---|---|
+| `tableId` | `string` | ID from `generateTableId()`, stored in `<let>` |
+| `options` | `TableOptions<TData>` | Any valid TanStack Table options |
+| `currentState` | `Record<string, unknown>` | Current values of all state `<let>` signals |
+| `setState` | `(updater) => void` | Writes TanStack state changes back to Marko signals |
 
 Returns: `Table<TData>` — the live table instance (same reference every call).
 
@@ -344,7 +353,7 @@ Returns: `Table<TData>` — the live table instance (same reference every call).
 
 ### `generateTableId()`
 
-Returns a unique string ID. Store in `<let/tableId>` — it's serializable and survives SSR→client.
+Returns a unique string ID. Store in `<let/tableId = generateTableId() />` — it's serializable and survives SSR→client.
 
 ---
 
@@ -353,7 +362,6 @@ Returns a unique string ID. Store in `<let/tableId>` — it's serializable and s
 Retrieves a table instance from the module cache by ID. Use in event handlers that can't close over `t` (SSR components).
 
 ```marko
-// In SSR handlers, never close over `t` — use getTable instead
 onClick=() => getTable(tableId)?.firstPage()
 ```
 
@@ -361,10 +369,10 @@ onClick=() => getTable(tableId)?.firstPage()
 
 ### `destroyTable(id)`
 
-Removes the table instance from the cache. Call in `<effect>` cleanup.
+Removes the table instance from the cache. Call in `<script>` cleanup.
 
 ```marko
-<effect() { return () => destroyTable(tableId) } />
+<script() { return () => destroyTable(tableId) } />
 ```
 
 ---
@@ -383,21 +391,21 @@ ${ flexRender(cell.column.columnDef.cell, cell.getContext()) }
 
 Creates or updates a row virtualizer. Requires `@tanstack/virtual-core` v3+.
 
-| Parameter      | Type                                        | Description                            |
-| -------------- | ------------------------------------------- | -------------------------------------- |
-| `tableId`      | `string`                                    | Same ID as `syncMarkoTable`            |
-| `scrollElId`   | `string`                                    | `id` attribute of the scroll container |
-| `count`        | `number`                                    | Total filtered row count               |
-| `estimateSize` | `(i: number) => number`                     | Estimated row height in pixels         |
-| `onUpdate`     | `(rows, paddingTop, paddingBottom) => void` | Called when virtual items change       |
+| Parameter | Type | Description |
+|---|---|---|
+| `tableId` | `string` | Same ID as `syncMarkoTable` |
+| `scrollElId` | `string` | `id` attribute of the scroll container |
+| `count` | `number` | Total filtered row count |
+| `estimateSize` | `(i: number) => number` | Estimated row height in pixels |
+| `onUpdate` | `(rows, paddingTop, paddingBottom) => void` | Called when virtual items change |
 
-Call inside `<effect>` so the scroll container exists in the DOM.
+Call inside `<script>` so the scroll container exists in the DOM.
 
 ---
 
-### `preloadVirtualizer()`
+### `destroyVirtualizer(id)`
 
-Pre-loads `@tanstack/virtual-core` in ESM-only environments where `require()` is unavailable.
+Removes a virtualizer instance from the cache. Called automatically by `destroyTable`.
 
 ---
 
@@ -417,7 +425,33 @@ Pre-loads `@tanstack/virtual-core` in ESM-only environments where `require()` is
 })() />
 ```
 
-### 2. Use `checkedChange` not `onChange` for controlled checkboxes
+### 2. Use `as` casts on typed `<let>` initial values
+
+The Marko language server infers `never[]` from `[]` and `{}` without a type hint. Use `as` casts so types resolve correctly:
+
+```marko
+// ❌ Language server infers never[] — downstream type errors
+<let/sorting: SortingState = [] />
+
+// ✅ Type inferred correctly from the cast
+<let/sorting = ([] as SortingState) />
+<let/rowSelection = ({} as RowSelectionState) />
+```
+
+### 3. Cast `nxt as typeof cur` in the setState callback
+
+`syncMarkoTable`'s `setState` is typed as `Updater<Record<string, unknown>>`, so `updater(cur)` returns `Record<string, unknown>` — every property access is `unknown` without the cast:
+
+```marko
+(updater) => {
+  const cur = { sorting, pagination };
+  // ✅ Cast nxt so nxt.sorting has type SortingState, not unknown
+  const nxt = (typeof updater === "function" ? updater(cur) : updater) as typeof cur;
+  if (nxt.sorting !== sorting) sorting = nxt.sorting;
+}
+```
+
+### 4. Use `checkedChange` not `onChange` for controlled checkboxes
 
 ```marko
 // ❌ Preserves old visual state (Marko's uncontrolled mode)
@@ -427,7 +461,7 @@ Pre-loads `@tanstack/virtual-core` in ESM-only environments where `require()` is
 <input type="checkbox" checked=row.isSelected checkedChange=(v) => {...} />
 ```
 
-### 3. Pre-map all TanStack objects to plain values before the template
+### 5. Pre-map all TanStack objects to plain values before the template
 
 TanStack `Row`, `Cell`, `Header`, and `Column` objects contain functions and cannot be serialized. Extract all needed values inside the IIFE:
 
@@ -447,7 +481,21 @@ TanStack `Row`, `Cell`, `Header`, and `Column` objects contain functions and can
 })() />
 ```
 
-### 4. Avoid `>` in `<const>` expressions
+### 6. Use `<script>` not `<effect>`
+
+`<effect>` is deprecated. Use `<script>` for all side effects and cleanup:
+
+```marko
+// ❌ Deprecated
+<effect() { mounted = true } />
+<effect() { return () => destroyTable(tableId) } />
+
+// ✅ Current
+<script() { mounted = true } />
+<script() { return () => destroyTable(tableId) } />
+```
+
+### 7. Avoid `>` in `<const>` expressions
 
 Marko's HTML parser treats `>` as a tag-close character:
 
@@ -457,10 +505,9 @@ Marko's HTML parser treats `>` as a tag-close character:
 
 // ✅ Use truthy check or !== instead
 <const/hasFilters = !!filters.length />
-<const/hasFilters = filters.length !== 0 />
 ```
 
-### 5. Event handlers must only close over serializable values
+### 8. Event handlers must only close over serializable values
 
 In SSR components, anything captured in a handler closure is serialized. Only close over `string`, `number`, `boolean`, or `<let>` signals:
 
@@ -480,17 +527,17 @@ onClick=() => {
 
 ## SSR + Resume: what actually gets serialized
 
-| In resume frame                               | Not in resume frame                           |
-| --------------------------------------------- | --------------------------------------------- |
-| `tableId` (string)                            | Table instance (functions, class prototype)   |
-| `sorting` (array of plain objects)            | Row objects                                   |
-| `pagination` (plain object)                   | Header/Cell/Column objects                    |
-| `rowSelection` (plain string/boolean map)     | `flexRender` output (recomputed from signals) |
-| `globalFilter` (string)                       |                                               |
-| `columnFilters` (array of plain objects)      |                                               |
-| `columnVisibility` (plain string/boolean map) |                                               |
-| `columnSizing` (plain string/number map)      |                                               |
-| `expanded` (plain string/boolean map)         |                                               |
+| In resume frame | Not in resume frame |
+|---|---|
+| `tableId` (string) | Table instance (functions, class prototype) |
+| `sorting` (array of plain objects) | Row objects |
+| `pagination` (plain object) | Header/Cell/Column objects |
+| `rowSelection` (plain string/boolean map) | `flexRender` output (recomputed from signals) |
+| `globalFilter` (string) | |
+| `columnFilters` (array of plain objects) | |
+| `columnVisibility` (plain string/boolean map) | |
+| `columnSizing` (plain string/number map) | |
+| `expanded` (plain string/boolean map) | |
 
 On the server: table rows are fully rendered to HTML. On the client: Marko restores the signals from the resume frame, the first interaction triggers the IIFE, `syncMarkoTable` recreates the table instance with the correct state, and the reactive cycle proceeds.
 

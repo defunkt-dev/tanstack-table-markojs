@@ -3,23 +3,42 @@
   Do NOT manually edit this file or your changes will be lost.
 */
 
-import { NotHandled, NotMatched, GetPaths, PostPaths, GetablePath, GetableHref, PostablePath, PostableHref, Platform } from "@marko/run/namespace";
+import {
+  NotHandled,
+  NotMatched,
+  GetPaths,
+  PostPaths,
+  GetablePath,
+  GetableHref,
+  PostablePath,
+  PostableHref,
+  Platform,
+} from "@marko/run/namespace";
 import type * as Run from "@marko/run";
 
-
 declare module "@marko/run" {
-	interface AppData extends Run.DefineApp<{
-		routes: {
-			"/": { verb: "get"; };
-			"/client-only": { verb: "get"; };
-			"/virtual": { verb: "get"; };
-		}
-	}> {}
+  interface AppData extends Run.DefineApp<{
+    routes: {
+      "/": { verb: "get" };
+      "/client-only": { verb: "get" };
+      "/virtual": { verb: "get" };
+    };
+  }> {}
 }
 
 declare module "../src/routes/+page.marko" {
   namespace MarkoRun {
-    export { NotHandled, NotMatched, GetPaths, PostPaths, GetablePath, GetableHref, PostablePath, PostableHref, Platform };
+    export {
+      NotHandled,
+      NotMatched,
+      GetPaths,
+      PostPaths,
+      GetablePath,
+      GetableHref,
+      PostablePath,
+      PostableHref,
+      Platform,
+    };
     export type Route = Run.Routes["/"];
     export type Context = Run.MultiRouteContext<Route> & Marko.Global;
     export type Handler = Run.HandlerLike<Route>;
@@ -30,7 +49,17 @@ declare module "../src/routes/+page.marko" {
 
 declare module "../src/routes/client-only/+page.marko" {
   namespace MarkoRun {
-    export { NotHandled, NotMatched, GetPaths, PostPaths, GetablePath, GetableHref, PostablePath, PostableHref, Platform };
+    export {
+      NotHandled,
+      NotMatched,
+      GetPaths,
+      PostPaths,
+      GetablePath,
+      GetableHref,
+      PostablePath,
+      PostableHref,
+      Platform,
+    };
     export type Route = Run.Routes["/client-only"];
     export type Context = Run.MultiRouteContext<Route> & Marko.Global;
     export type Handler = Run.HandlerLike<Route>;
@@ -41,7 +70,17 @@ declare module "../src/routes/client-only/+page.marko" {
 
 declare module "../src/routes/virtual/+page.marko" {
   namespace MarkoRun {
-    export { NotHandled, NotMatched, GetPaths, PostPaths, GetablePath, GetableHref, PostablePath, PostableHref, Platform };
+    export {
+      NotHandled,
+      NotMatched,
+      GetPaths,
+      PostPaths,
+      GetablePath,
+      GetableHref,
+      PostablePath,
+      PostableHref,
+      Platform,
+    };
     export type Route = Run.Routes["/virtual"];
     export type Context = Run.MultiRouteContext<Route> & Marko.Global;
     export type Handler = Run.HandlerLike<Route>;
