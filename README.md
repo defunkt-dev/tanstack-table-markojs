@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="./assets/marko.svg" alt="Marko" height="60" />
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/marko.png" alt="Marko" height="60" />
   &nbsp;&nbsp;+&nbsp;&nbsp;
-  <img src="./assets/tanstack.png" alt="TanStack" height="60" />
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/tanstack.png" alt="TanStack" height="60" />
 </p>
 
 # tanstack-table-markojs
