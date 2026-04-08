@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "marko-run dev",
     "build": "marko-run build",
-    "start": "marko-run start"
+    "start": "marko-run start",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@babel/core": "^7.24.0",
@@ -14,5 +16,10 @@
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.23",
     "marko": "^6.0.0"
+  },
+  "devDependencies": {
+    "@storybook/marko": "^10.1.0",
+    "@storybook/marko-vite": "^4.1.0",
+    "storybook": "^10.3.5"
   }
 }
