@@ -1,8 +1,9 @@
-<table align="center" border="0"><tr>
-  <td><img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/marko.png" alt="Marko" height="120" /></td>
-  <td align="center"><b>+</b></td>
-  <td><img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/tanstack.png" alt="TanStack" height="120" /></td>
-</tr></table>
+
+<p align="center">
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/marko.png" alt="Marko" height="120" />
+  &nbsp;&nbsp;×&nbsp;&nbsp;
+  <img src="https://github.com/defunkt-dev/tanstack-table-markojs/blob/main/.assets/tanstack.png" alt="TanStack" height="120" />
+</p>
 
 # tanstack-table-markojs
 
