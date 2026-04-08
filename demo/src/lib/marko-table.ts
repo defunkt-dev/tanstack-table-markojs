@@ -23,7 +23,9 @@ export function generateTableId(): string {
   return `mkt_${++_idCounter}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function getTable<TData extends RowData>(id: string): Table<TData> | undefined {
+export function getTable<TData extends RowData>(
+  id: string,
+): Table<TData> | undefined {
   return _instances.get(id) as Table<TData> | undefined;
 }
 
@@ -33,12 +35,16 @@ export function destroyTable(id: string): void {
 }
 
 export type Renderable<TProps> =
-  | string | number | boolean | null | undefined
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
   | ((props: TProps) => unknown);
 
 export function flexRender<TProps extends object>(
   comp: Renderable<TProps>,
-  props: TProps
+  props: TProps,
 ): unknown {
   if (comp == null) return null;
   if (typeof comp === "function") return comp(props);
@@ -49,7 +55,7 @@ export function syncMarkoTable<TData extends RowData>(
   tableId: string,
   options: TableOptions<TData>,
   currentState: Record<string, unknown>,
-  setState: (updater: Updater<Record<string, unknown>>) => void
+  setState: (updater: Updater<Record<string, unknown>>) => void,
 ): Table<TData> {
   let table = _instances.get(tableId) as Table<TData> | undefined;
 
@@ -63,19 +69,22 @@ export function syncMarkoTable<TData extends RowData>(
     _instances.set(tableId, table);
   }
 
-  table.setOptions((prev) => ({
-    ...prev,
-    ...options,
-    state: {
-      ...table!.initialState,
-      ...currentState,
-      ...(options.state ?? {}),
-    },
-    onStateChange(updater: Updater<Record<string, unknown>>) {
-      setState(updater);
-      (options as any).onStateChange?.(updater);
-    },
-  }));
+  table.setOptions(
+    (prev) =>
+      ({
+        ...prev,
+        ...options,
+        state: {
+          ...table!.initialState,
+          ...currentState,
+          ...(options.state ?? {}),
+        },
+        onStateChange(updater: Updater<Record<string, unknown>>) {
+          setState(updater);
+          (options as any).onStateChange?.(updater);
+        },
+      }) as any,
+  );
 
   return table;
 }
@@ -107,7 +116,11 @@ export function syncVirtualizer(
   scrollElId: string,
   count: number,
   estimateSize: (i: number) => number,
-  onUpdate: (rows: VirtualRow[], paddingTop: number, paddingBottom: number) => void
+  onUpdate: (
+    rows: VirtualRow[],
+    paddingTop: number,
+    paddingBottom: number,
+  ) => void,
 ): void {
   const notify = (instance: VInstance) => {
     const items = instance.getVirtualItems() as unknown as VirtualRow[];
